@@ -198,3 +198,10 @@ def test_runtime_dir_is_created_on_first_use(tmp_path, monkeypatch, capsys):
     d = tmp_path / "fresh" / "overseer"
     assert ovsr.main(["--dir", str(d), "intro", "some-session"]) == 0
     assert (d / "state.json").exists()
+
+
+def test_tick_writes_a_one_line_overseer_name_file(tmp_path, monkeypatch, capsys):
+    d = setup(tmp_path, monkeypatch)
+    (Path(d) / "roster.json").write_text(json.dumps({"ts": S.now_iso(), "sessions": []}))
+    ovsr.main(["--dir", d, "tick", "--no-gh", "--session", "kube-agents-vamp-65"])
+    assert (Path(d) / "OVERSEER").read_text() == "kube-agents-vamp-65\n"

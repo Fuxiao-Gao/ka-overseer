@@ -131,6 +131,7 @@ def cmd_tick(p, a):
         me = S.session(state, a.session)
         me.update(role="overseer", status="working", last_report=now, rules_ack=state["rules_version"],
                   theme=me["theme"] or "all kube-agents sessions", driver=me["driver"] or "loop")
+        S.write_atomic(p.dir / "OVERSEER", a.session + "\n")   # one line, grep-proof: who the Overseer is right now
     new = S.apply_roster(state, _roster(p), now)
     gh_errors = {}
     if not a.no_gh:

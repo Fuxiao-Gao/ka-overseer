@@ -27,9 +27,8 @@ name. Nothing else tells you your name.
 ## The report
 
 Send this with `SendMessage` to the Overseer: the session named in the INTRO you got.
-Not introduced yet? Read `overseer.session` from
-`<ka-overseer>/overseer/state.json` (one `python3 -c` or `grep`
-call) and send there. Six lines max, first line verbatim:
+Not introduced yet? `cat <ka-overseer>/overseer/OVERSEER` prints the Overseer's session name, nothing else; send there.
+(Do not grep state.json for "session": it has one per row and per attention item.) Six lines max, first line verbatim:
 
 ```
 OVERSEER REPORT <your-session-name>

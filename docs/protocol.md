@@ -5,10 +5,10 @@ dashboard, relays rules, and pokes stalled sessions. This file is the wire forma
 Sessions learn their own name from the first line of `ListAgents`.
 
 Scope: sessions named sessions matching `session_pattern` in `overseer/config.json`. Reports go to the session named in the
-INTRO you received. If you have not been introduced, read `overseer.session` from
-`<ka-overseer>/overseer/state.json` (the tick keeps it current) and
-send there; if that file is missing, `ListAgents` and send to the session whose name
-starts with `overseer`.
+INTRO you received. If you have not been introduced, `cat <ka-overseer>/overseer/OVERSEER` prints the
+Overseer's session name and nothing else (the tick keeps it current); send there. Do not grep
+state.json for "session", it has one per row. If the file is missing, `ListAgents` and send to
+the session whose name starts with `overseer`.
 
 ## Report schema
 
