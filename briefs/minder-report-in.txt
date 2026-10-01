@@ -1,0 +1,2 @@
+  On start and on every status change, report to the Overseer per the working-with-the-overseer
+  skill; send `waiting-human` before asking me anything.

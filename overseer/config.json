@@ -1,0 +1,27 @@
+{
+  "repo": "gke-labs/kube-agents",
+  "human": "the human",
+  "human_short": "human",
+  "session_pattern": "^(kube-agents-|overseer)",
+  "gating_bot": "kube-agents-bot",
+  "advisory_bot": "kyber775",
+  "round_cap": 6,
+  "ignored_check_contexts": [
+    "tide"
+  ],
+  "scope_queries": {
+    "mine": [
+      "--author",
+      "@me"
+    ],
+    "review_requested": [
+      "--search",
+      "review-requested:@me"
+    ],
+    "reviewed": [
+      "--search",
+      "reviewed-by:@me -author:@me"
+    ]
+  },
+  "notify": "osascript"
+}
