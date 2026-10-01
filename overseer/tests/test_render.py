@@ -42,7 +42,7 @@ def test_sessions_and_prs_tables():
     assert 'class="row gone"' in html                          # gone session greyed
     assert 'class="cap"' in html                               # rounds 6 highlighted
     assert "owner says rounds 5, GitHub 6" in html
-    assert html.index("fix thing") < html.index("#6 other")    # nearest-the-gate first
+    assert html.index("fix thing") < html.index(">#6</a> other")   # nearest-the-gate first
     assert 'data-ts="2026-10-01T20:00:00Z"' in html            # ages computed client-side
     assert "Rules v9" in html
 
@@ -66,3 +66,18 @@ def test_cli(tmp_path):
     V.main(["--state", str(tmp_path / "state.json"), "--roster", str(tmp_path / "roster.json"),
             "--out", str(tmp_path / "d.html")])
     assert "<table" in (tmp_path / "d.html").read_text()
+
+
+def test_pr_numbers_are_links_everywhere():
+    s = sample()
+    S.add_attention(s, "kube-agents-vamp-1", "waiting-human", 5, "file an issue for #1938's leftovers?", T0)
+    s["sessions"]["kube-agents-vamp-1"]["note"] = "tracks #1979 as stacked"
+    html = V.render(s, None, T0)
+    base = V.PR_URL.format(n="")
+    assert f'<a href="{base}5">#5</a>' in html                 # sessions PRs column and attention PR column
+    assert f'<a href="{base}1938">#1938</a>' in html            # inside the attention question
+    assert f'<a href="{base}1979">#1979</a>' in html            # inside a note
+    # text is still escaped around the links
+    s["sessions"]["kube-agents-vamp-1"]["note"] = "<b>#7</b>"
+    html = V.render(s, None, T0)
+    assert "&lt;b&gt;" in html and f'<a href="{base}7">#7</a>' in html

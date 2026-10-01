@@ -2,10 +2,16 @@
 import argparse
 import html
 import json
+import re
 import sys
 from pathlib import Path
 
 import state as S
+from config import CFG
+REPO = CFG["repo"]
+
+PR_URL = "https://github.com/" + REPO + "/pull/{n}"
+PR_REF = re.compile(r"#(\d+)")
 
 # dataviz status palette; every status also carries an icon + word, never colour alone.
 CSS = """
@@ -44,6 +50,15 @@ def e(x):
     return html.escape("" if x is None else str(x))
 
 
+def pr_link(n):
+    return f'<a href="{PR_URL.format(n=n)}">#{n}</a>'
+
+
+def L(x):
+    """Escape, then turn every #NNNN into a link to that PR."""
+    return PR_REF.sub(lambda m: pr_link(m.group(1)), e(x))
+
+
 def ts(x, stale_min=None):
     if not x:
         return "—"
@@ -60,8 +75,8 @@ def _attention(state):
     if not items:
         return '<div class="attention green">✓ Nothing is waiting on you.</div>'
     rows = "".join(
-        f"<tr><td>{e(i['session'])}</td><td>{'#%d' % i['pr'] if i['pr'] else '—'}</td>"
-        f"<td>{ts(i['since'])}</td><td>{e(i['kind'])}</td><td title=\"{e(i['what'])}\">{e(i['what'])}</td></tr>"
+        f"<tr><td>{e(i['session'])}</td><td>{pr_link(i['pr']) if i['pr'] else '—'}</td>"
+        f"<td>{ts(i['since'])}</td><td>{e(i['kind'])}</td><td title=\"{e(i['what'])}\">{L(i['what'])}</td></tr>"
         for i in items)
     return (f'<div class="attention red"><table><tr><th>session</th><th>PR</th><th>for</th><th>kind</th><th>what</th></tr>'
             f"{rows}</table></div>")
@@ -79,12 +94,12 @@ def _sessions(state, roster):
         cadence = r["cadence_min"]
         stale = cadence * 2 if cadence else None
         driver = f"{r['driver']}/{cadence}m" if r["driver"] and cadence else (r["driver"] or "—")
-        prs = " ".join(f"#{n}" for n in r["prs"]) or "—"
+        prs = " ".join(pr_link(n) for n in r["prs"]) or "—"
         out.append(
-            f'<tr class="row {cls}"><td>{e(name)}</td><td>{e(r["role"] or "—")}</td><td>{e(r["theme"] or "—")}</td>'
+            f'<tr class="row {cls}"><td>{e(name)}</td><td>{e(r["role"] or "—")}</td><td>{L(r["theme"] or "—")}</td>'
             f"<td>{e(driver)}</td><td>{ROSTER_ICON.get(rs, e(rs))}</td><td>{STATUS_ICON.get(r['status'], e(r['status']))}</td>"
             f"<td>{prs}</td><td>{ts(r['last_report'], stale)}</td><td>{ts(r['last_activity'])}</td>"
-            f"<td>{e(r['rules_ack'] or '—')}</td><td title=\"{e(r['needs'] or r['status_detail'] or r['note'])}\">{e(r['needs'] or r['status_detail'] or r['note'] or '')}</td></tr>")
+            f"<td>{e(r['rules_ack'] or '—')}</td><td title=\"{e(r['needs'] or r['status_detail'] or r['note'])}\">{L(r['needs'] or r['status_detail'] or r['note'] or '')}</td></tr>")
     return ("<table><tr><th>session</th><th>role</th><th>theme</th><th>driver</th><th>roster</th><th>reported</th>"
             "<th>PRs</th><th>last report</th><th>last activity</th><th>rules</th><th>needs / note</th></tr>"
             + "".join(out) + "</table>")
@@ -105,7 +120,7 @@ def _prs(state):
         chk, chk_cls = CHECK_ICON.get(p.get("checks"), ("—", "muted"))
         rounds = p.get("rounds")
         rounds_html = f'<span class="cap">{rounds}</span>' if (rounds or 0) >= 6 else e(rounds if rounds is not None else "—")
-        title = f'<a href="{e(p["url"])}">#{n}</a> {e(p["title"] or "")}' if p.get("url") else f"#{n} {e(p['title'] or '')}"
+        title = f'<a href="{e(p["url"]) if p.get("url") else PR_URL.format(n=n)}">#{n}</a> {e(p["title"] or "")}'
         err = f' title="snapshot error: {e(p["snapshot_error"])}"' if p.get("snapshot_error") else ""
         out.append(
             f"<tr{err}><td>{title}</td><td>{e(p['owner'] or '—')}</td><td>{e(p['mergeable'] or '—')}</td>"
@@ -113,7 +128,7 @@ def _prs(state):
             f'<td>{rounds_html}</td><td class="muted">{e(p["advisory_rounds"] if p["advisory_rounds"] is not None else "—")}</td>'
             f"<td>{yn(p['hold'])}</td><td>{yn(p['lgtm'])}</td><td>{yn(p['approved'])}</td>"
             f"<td>{e(', '.join(p['reviewers']) or '—')}</td><td>{ts(p['last_activity'])}</td>"
-            f"<td title=\"{e(p['drift'])}\">{e(p['drift'] or '')}</td></tr>")
+            f"<td title=\"{e(p['drift'])}\">{L(p['drift'] or '')}</td></tr>")
     return ("<table><tr><th>PR</th><th>owner</th><th>mergeable</th><th>checks</th><th>threads</th><th>rounds</th>"
             "<th>kyber</th><th>hold</th><th>lgtm</th><th>approved</th><th>reviewers</th><th>activity</th><th>drift</th></tr>"
             + "".join(out) + "</table>")
