@@ -191,3 +191,10 @@ def test_attention_command_opens_a_manual_item_once_and_notifies(tmp_path, monke
     assert ovsr.FIRED == ["kube-agents-vamp-d4: 15 gating rounds; re-evaluate for drift"]
     assert ovsr.main(["--dir", d, "attention", "-", "orphan", "1885", "no driver"]) == 0
     assert S.load_state(Path(d) / "state.json")["attention"][1]["session"] == "-"
+
+
+def test_runtime_dir_is_created_on_first_use(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(ovsr, "notify", lambda title, text: None)
+    d = tmp_path / "fresh" / "overseer"
+    assert ovsr.main(["--dir", str(d), "intro", "some-session"]) == 0
+    assert (d / "state.json").exists()

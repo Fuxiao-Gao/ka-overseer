@@ -34,6 +34,7 @@ From now on send me that report whenever your status or PR list changes, BEFORE 
 class Paths:
     def __init__(self, d):
         self.dir = Path(d)
+        self.dir.mkdir(parents=True, exist_ok=True)
         self.state = self.dir / "state.json"
         self.log = self.dir / "reports.log"
         self.roster = self.dir / "roster.json"
