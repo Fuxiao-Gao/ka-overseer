@@ -13,7 +13,7 @@ REPO = CFG["repo"]
 GATING_BOT = CFG["gating_bot"]
 ADVISORY_BOT = CFG["advisory_bot"]
 ROUND_CAP = int(CFG["round_cap"])
-PR_FIELDS = "title,headRefOid,headRefName,url,state,isDraft,mergeable,labels,reviews,reviewRequests,statusCheckRollup,updatedAt"
+PR_FIELDS = "title,headRefOid,headRefName,url,state,isDraft,mergeable,labels,reviews,reviewRequests,statusCheckRollup,updatedAt,commits,comments"
 THREADS_QUERY = ("query($o:String!,$r:String!,$n:Int!,$after:String){repository(owner:$o,name:$r)"
                  "{pullRequest(number:$n){reviewThreads(first:100,after:$after)"
                  "{nodes{isResolved} pageInfo{hasNextPage endCursor}}}}}")
@@ -31,8 +31,21 @@ def _run(cmd):
 IGNORED_CONTEXTS = set(CFG["ignored_check_contexts"])  # e.g. tide: merge-pool state, PENDING until merge, not a CI check
 
 
+def _latest_runs(rollup):
+    """A re-run check leaves its cancelled or failed predecessor in the roll-up; keep the latest run per name."""
+    latest = {}
+    for c in rollup:
+        if c.get("__typename") == "CheckRun" and c.get("name"):
+            key = ("run", c["name"])
+            if key not in latest or (c.get("startedAt") or "") > (latest[key].get("startedAt") or ""):
+                latest[key] = c
+        else:
+            latest[("ctx", c.get("context"), id(c))] = c
+    return list(latest.values())
+
+
 def checks_state(rollup):
-    rollup = [c for c in (rollup or []) if c.get("context") not in IGNORED_CONTEXTS]
+    rollup = _latest_runs([c for c in (rollup or []) if c.get("context") not in IGNORED_CONTEXTS])
     if not rollup:
         return "none"
     red = pending = False
@@ -49,6 +62,15 @@ def checks_state(rollup):
             elif c.get("conclusion") in BAD:
                 red = True
     return "red" if red else "pending" if pending else "green"
+
+
+def last_activity(pr):
+    """The latest real event: a commit, a comment, or a review. updatedAt moves for invisible reasons."""
+    events = [c.get("committedDate") for c in pr.get("commits") or []]
+    events += [c.get("createdAt") for c in pr.get("comments") or []]
+    events += [r.get("submittedAt") for r in pr.get("reviews") or []]
+    events = [e for e in events if e]
+    return max(events) if events else pr.get("updatedAt")
 
 
 def classify_pr(pr, unresolved):
@@ -70,7 +92,8 @@ def classify_pr(pr, unresolved):
         "lgtm": "lgtm" in labels,
         "approved": "approved" in labels,
         "reviewers": [r.get("login") or r.get("name") for r in pr.get("reviewRequests", [])],
-        "last_activity": pr.get("updatedAt"),
+        "last_activity": last_activity(pr),
+        "updated_at": pr.get("updatedAt"),
     }
 
 

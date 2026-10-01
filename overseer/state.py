@@ -64,7 +64,7 @@ def _pr_row():
     return {"owner": None, "title": None, "head": None, "branch": None, "url": None,
             "state": None, "mergeable": None, "checks": None, "unresolved_threads": None,
             "rounds": None, "rounds_prev": None, "advisory_rounds": None, "hold": None, "lgtm": None,
-            "approved": None, "reviewers": [], "last_activity": None,
+            "approved": None, "reviewers": [], "last_activity": None, "updated_at": None,
             "last_owner_report": None, "owner_belief": None, "drift": None,
             "snapshot_error": None, "hazards": None}
 

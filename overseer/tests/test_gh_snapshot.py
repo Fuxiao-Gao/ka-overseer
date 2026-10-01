@@ -33,7 +33,7 @@ def test_classify_real_pr():
     assert row["unresolved_threads"] == 0
     assert row["checks"] == "green"
     assert row["state"] == "OPEN" and row["draft"] is False
-    assert row["last_activity"] == FIX["updatedAt"]
+    assert row["updated_at"] == FIX["updatedAt"]
 
 
 def test_labels_drive_hold_lgtm_approved():
@@ -109,3 +109,23 @@ def test_fetch_unresolved_paginates_past_100_threads():
         return pages.pop(0)
     assert G.fetch_unresolved(2056, graphql=graphql) == 3
     assert seen == [None, "c1"]
+
+
+def test_superseded_check_runs_do_not_count():
+    rollup = [{"__typename": "CheckRun", "name": "classify", "status": "COMPLETED", "conclusion": "CANCELLED", "startedAt": "2026-10-01T18:47:10Z"},
+              {"__typename": "CheckRun", "name": "classify", "status": "COMPLETED", "conclusion": "SUCCESS", "startedAt": "2026-10-01T18:51:20Z"}]
+    assert G.checks_state(rollup) == "green"
+    assert G.checks_state(list(reversed(rollup))) == "green"        # order in the roll-up does not matter
+    rollup[1]["conclusion"] = "FAILURE"
+    assert G.checks_state(rollup) == "red"                            # the latest run is what counts
+
+
+def test_last_activity_is_the_latest_real_event_not_updated_at():
+    pr = dict(FIX, updatedAt="2026-10-02T00:00:00Z")                  # updatedAt bumped by nothing visible
+    row = G.classify_pr(pr, 0)
+    expected = max([c["committedDate"] for c in FIX["commits"]] + [c["createdAt"] for c in FIX["comments"]]
+                   + [r["submittedAt"] for r in FIX["reviews"]])
+    assert row["last_activity"] == expected
+    assert row["updated_at"] == "2026-10-02T00:00:00Z"
+    bare = G.classify_pr({"updatedAt": "2026-10-01T00:00:00Z"}, 0)   # nothing but updatedAt: fall back to it
+    assert bare["last_activity"] == "2026-10-01T00:00:00Z"
