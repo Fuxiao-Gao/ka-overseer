@@ -18,7 +18,8 @@ def _iso(ms):
 
 
 def filter_roster(agents):
-    out = [{"name": a["name"], "status": a["status"], "kind": a.get("kind"),
+    # a session caught mid-start or mid-exit can lack `status`; keep it as unknown rather than crash the watcher
+    out = [{"name": a["name"], "status": a.get("status") or "unknown", "kind": a.get("kind"),
             "started_at": _iso(a["startedAt"]) if a.get("startedAt") else None}
            for a in agents if a.get("name") and SCOPE.match(a["name"])]
     return sorted(out, key=lambda a: a["name"])

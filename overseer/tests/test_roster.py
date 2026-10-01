@@ -37,3 +37,11 @@ def test_cli_writes_roster_and_prints_new_waiting(tmp_path, monkeypatch):
     fired.clear()
     R.main(["--out", str(out), "--notify"])
     assert fired == []
+
+
+def test_entry_without_status_is_kept_as_unknown_not_a_crash():
+    raw = RAW + [{"pid": 9, "cwd": "/x", "kind": "interactive", "startedAt": 1790000000000, "sessionId": "e", "name": "kube-agents-vamp-new"}]
+    out = R.filter_roster(raw)
+    row = next(a for a in out if a["name"] == "kube-agents-vamp-new")
+    assert row["status"] == "unknown"
+    assert "kube-agents-vamp-new" not in R.newly_waiting(None, out)
