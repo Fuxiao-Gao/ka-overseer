@@ -32,7 +32,7 @@ Not introduced yet? `cat <ka-overseer>/overseer/OVERSEER` prints the Overseer's 
 
 ```
 OVERSEER REPORT <your-session-name>
-role: pr-minder|bug-minder|review-minder|task | theme: <topic> | driver: loop/<N>m|goal|manual | mode: auto|other
+role: pr-minder|bug-minder|review-minder|planner|task | theme: <topic> | driver: loop/<N>m|goal|manual | mode: auto|other
 prs: #<n> round <gating rounds> <k>-threads hold|no-hold <free text>; #<n> ...   (or: none)
 status: working | waiting-human: <the question, one line> | waiting-review | idle
 rules: <highest rule number you have read in docs/rules.md>
