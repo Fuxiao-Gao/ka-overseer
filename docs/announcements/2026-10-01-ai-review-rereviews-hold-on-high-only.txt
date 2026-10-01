@@ -1,0 +1,13 @@
+AI Review change: re-reviews now hold the check on High only
+
+
+We measured the last three weeks of bot reviews. Clean reviews fell from 48% to 9%, and after the first round findings stopped decaying: about 2.5 new ones every round, mostly on code the previous round had already looked at. PRs were circling while nearly everything the bot raised was being fixed.
+
+
+As of today:
+First review of a PR: unchanged. High and Medium both hold the check.
+Any later review of that PR: only High holds. Medium findings are still posted as threads with their fix, and still counted in the title, but the check goes green with them open. The title says "Found N issues, none holding" and the body says why.
+What you do with a Medium on a re-review is your call. Fix it, or reply and resolve the thread. You no longer need another round to get green.
+Threads still have to be resolved before merge on repos that require conversation resolution. The change removes the review loop, not the conversation.
+Two things reset you to the first-review bar: a diff that has more than doubled since the last reviewed commit, or a /review on a commit that was already reviewed (that just re-cuts the earlier review).
+

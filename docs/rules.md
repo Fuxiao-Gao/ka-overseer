@@ -14,3 +14,6 @@ struck through. Sessions acknowledge by sending `rules: N` in a report.
 7. `kyber775` is advisory. It does not gate and its findings do not count as rounds.
 8. A finding whose fix is a new rule, a regex, or a design change goes to the human, not into the PR.
 9. Nothing blocked in your session is asked of a peer. Route it to the human via the Overseer.
+10. Bot re-reviews (any review of a PR after its first) hold the check on High only. Medium findings are still posted as threads with their fix and counted in the title ("Found N issues, none holding"), but the check goes green with them open. The first review of a PR is unchanged: High and Medium both hold.
+11. A Medium on a re-review is your call: fix it, or reply and resolve the thread. No further /review round is needed to get green. Threads must still be resolved before merge where the repo requires conversation resolution; the change removes the review loop, not the conversation.
+12. Two things reset a PR to the first-review bar: a diff that has more than doubled since the last reviewed commit, or a /review on a commit that was already reviewed (that re-cuts the earlier review).
