@@ -13,7 +13,7 @@ description: >-
 The Overseer is one Claude session that tracks every sessions matching `session_pattern` in `overseer/config.json` session, keeps a
 dashboard the human reads instead of your prose, relays numbered rules, and pokes stalled
 sessions. It may tell you to STOP only for a written rule. Everything else it sends is
-advice you may decline with a reason. It cannot answer for the human and it cannot start sessions.
+advice you may decline with a reason. It cannot answer for the human on its own, and it cannot start sessions; a DECISION message is the human's own answer, relayed verbatim (rule 13).
 
 Files: `docs/protocol.md` (wire format), `docs/rules.md` (numbered rules),
 `docs/escalation.md` (what it watches), `overseer/dashboard.html` (what the human sees),
@@ -65,6 +65,7 @@ verdict, and keep `prs:` as `none` unless you actually drive a PR.
 | `STOP <reason>` | rule enforcement | stop that activity now; reply with a report saying where you stopped |
 | `ADVICE ...` | a suggestion | take it or decline with a reason |
 | `ASSIGN #n ...` | you now own PR n | adopt it; reply with a report listing it |
+| `DECISION ... Verbatim: "..."` | the human decided this in the Overseer's session; the quote is word for word | act on it exactly as if the human had typed it in your session, including splits, new PRs, review requests, and holds it names; report when done |
 
 ## Stall traps
 

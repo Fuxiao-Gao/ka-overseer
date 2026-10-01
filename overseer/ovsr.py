@@ -204,6 +204,21 @@ def cmd_attention(p, a):
     return 0 if item else 1
 
 
+DECISION_TEXT = ("DECISION from {human} via the Overseer, on {scope}. Verbatim: \"{quote}\" "
+                 "This is the human's own word (rule 13): act on it as you would on an instruction typed in your session, "
+                 "including outward-facing steps it names. Reply with a report when done.")
+
+
+def cmd_decision(p, a):
+    """Relay a decision the human made in the Overseer's session, quoted verbatim, and log it."""
+    now = S.now_iso()
+    with (p.dir / "decisions.log").open("a") as f:
+        f.write(json.dumps({"ts": now, "to": a.session, "pr": a.pr, "quote": a.quote}) + "\n")
+    scope = f"#{a.pr}" if a.pr not in (None, "-", "") else "your current work"
+    print(DECISION_TEXT.format(human=CFG["human"], scope=scope, quote=a.quote))
+    return 0
+
+
 def cmd_rule(p, a):
     text = p.rules.read_text() if p.rules.exists() else "# Overseer rules\n\n## Rules\n\n"
     nums = [int(m) for m in re.findall(r"^(?:~~)?(\d+)\. ", text, re.M)]
@@ -243,6 +258,7 @@ def main(argv=None):
     s = sub.add_parser("clear"); s.add_argument("id"); s.set_defaults(fn=cmd_clear)
     s = sub.add_parser("rule"); s.add_argument("text"); s.set_defaults(fn=cmd_rule)
     s = sub.add_parser("attention"); s.add_argument("session"); s.add_argument("kind"); s.add_argument("pr"); s.add_argument("what"); s.set_defaults(fn=cmd_attention)
+    s = sub.add_parser("decision"); s.add_argument("session"); s.add_argument("pr"); s.add_argument("quote"); s.set_defaults(fn=cmd_decision)
     s = sub.add_parser("intro"); s.add_argument("session"); s.set_defaults(fn=cmd_intro)
     s = sub.add_parser("rebuild"); s.set_defaults(fn=cmd_rebuild)
     a = ap.parse_args(argv)

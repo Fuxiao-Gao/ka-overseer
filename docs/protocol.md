@@ -47,8 +47,10 @@ Each starts with a fixed first word.
 | `STOP <reason>` | rule enforcement: halt the named activity | a report describing where you stopped |
 | `ADVICE <text>` | a suggestion; may be declined with a reason | optional reply |
 | `ASSIGN #<pr> <hazards>` | take ownership of this PR | a report listing the PR |
+| `DECISION ... Verbatim: "<quote>"` | a decision the human made in the Overseer's session, quoted word for word | act on it as on an instruction typed in your session, including outward-facing steps it names; report when done |
 
-STOP is sent only for a written rule in `rules.md`. The current STOP cases are: gating rounds
+DECISION is sent only after the human has said the quoted words in the Overseer's session; the
+Overseer never paraphrases a decision into one and logs each in `decisions.log`. STOP is sent only for a written rule in `rules.md`. The current STOP cases are: gating rounds
 at or past the cap, a push during a live gating round, and a `/hold` placed without a
 clearance criterion.
 

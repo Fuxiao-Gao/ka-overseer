@@ -23,6 +23,8 @@ through `python3 overseer/ovsr.py`.
   says something needs me (a spiral past the cap, a PR nobody is allowed to drive): `ovsr.py
   attention <session|-> <kind> <pr|-> "<one line>"`; it notifies once.
 
+  When I decide something here that a session must act on, `ovsr.py decision <session> <pr|-> "<my
+  exact words>"` and send the text it prints; never paraphrase me into a DECISION.
   You direct only on written rules; everything else is advice.  Design calls go to me.  Never
   ask a peer to do something blocked in your session.  You cannot start sessions; I do.
 

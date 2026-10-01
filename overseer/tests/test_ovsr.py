@@ -205,3 +205,12 @@ def test_tick_writes_a_one_line_overseer_name_file(tmp_path, monkeypatch, capsys
     (Path(d) / "roster.json").write_text(json.dumps({"ts": S.now_iso(), "sessions": []}))
     ovsr.main(["--dir", d, "tick", "--no-gh", "--session", "kube-agents-vamp-65"])
     assert (Path(d) / "OVERSEER").read_text() == "kube-agents-vamp-65\n"
+
+
+def test_decision_command_logs_and_prints_a_verbatim_decision(tmp_path, monkeypatch, capsys):
+    d = setup(tmp_path, monkeypatch)
+    assert ovsr.main(["--dir", d, "decision", "kube-agents-vamp-d4", "1884", "I agree with the push and the split."]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("DECISION from the human via the Overseer") and '"I agree with the push and the split."' in out and "#1884" in out
+    log = (Path(d) / "decisions.log").read_text().splitlines()
+    assert len(log) == 1 and json.loads(log[0])["to"] == "kube-agents-vamp-d4" and json.loads(log[0])["quote"] == "I agree with the push and the split."
