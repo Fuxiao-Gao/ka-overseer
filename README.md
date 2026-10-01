@@ -39,7 +39,7 @@ shipped set is the kube-agents team's, edit freely.
 
 1. Put this directory somewhere stable, e.g. `~/ka-overseer`. The code finds its own files.
 2. Edit `overseer/config.json`: your repo, the gating bot login, the advisory bot login (or
-   `""`), the round cap, the regex matching your session names, and how the human is named.
+   `""`), the round cap, the regex matching your session names, any checkout path prefixes whose sessions count regardless of name (`cwd_prefixes`), and how the human is named.
 3. `./install.sh` symlinks the skill into `~/.claude/skills/` so every session can see it, and
    runs the test suite.
 4. In a spare terminal: `zsh overseer/watch.sh`.

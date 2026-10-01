@@ -54,3 +54,10 @@ def test_duplicate_names_keep_the_oldest_and_suffix_the_rest():
     assert names.count("kube-agents-vamp-d4") == 1
     assert "kube-agents-vamp-d4~2" in names
     assert next(a for a in out if a["name"] == "kube-agents-vamp-d4")["status"] == "busy"      # the older one keeps the name
+
+
+def test_sessions_in_a_kube_agents_checkout_are_in_scope_whatever_their_name():
+    raw = RAW + [{"pid": 12, "cwd": "/Users/bnaylor/src/kube-agents-fork/.worktrees/sessions-p1", "kind": "interactive", "startedAt": 1790000000000, "sessionId": "w", "name": "sessions-p1-59", "status": "busy"},
+                 {"pid": 13, "cwd": "/Users/bnaylor/src/iris", "kind": "interactive", "startedAt": 1790000000000, "sessionId": "i", "name": "iris-7e", "status": "idle"}]
+    names = [a["name"] for a in R.filter_roster(raw)]
+    assert "sessions-p1-59" in names and "iris-7e" not in names and "home" not in names

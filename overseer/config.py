@@ -7,6 +7,7 @@ DEFAULTS = {
     "human": "the human",
     "human_short": "human",
     "session_pattern": "^(kube-agents-|overseer)",
+    "cwd_prefixes": [],
     "gating_bot": "kube-agents-bot",
     "advisory_bot": "kyber775",
     "round_cap": 6,

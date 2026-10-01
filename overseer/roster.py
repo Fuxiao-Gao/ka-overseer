@@ -11,6 +11,12 @@ from pathlib import Path
 from config import CFG
 
 SCOPE = re.compile(CFG["session_pattern"])
+CWD_PREFIXES = tuple(CFG.get("cwd_prefixes") or ())   # checkouts whose sessions count whatever they are named
+
+
+def in_scope(a):
+    name, cwd = a.get("name") or "", a.get("cwd") or ""
+    return bool(name) and (bool(SCOPE.match(name)) or any(cwd.startswith(p) for p in CWD_PREFIXES))
 
 
 def _iso(ms):
@@ -21,7 +27,7 @@ def filter_roster(agents):
     # a session caught mid-start or mid-exit can lack `status`; keep it as unknown rather than crash the watcher
     out = [{"name": a["name"], "status": a.get("status") or "unknown", "kind": a.get("kind"),
             "started_at": _iso(a["startedAt"]) if a.get("startedAt") else None}
-           for a in agents if a.get("name") and SCOPE.match(a["name"])]
+           for a in agents if in_scope(a)]
     # names can collide (the suffix is two hex digits); the oldest keeps the name, later ones get ~2, ~3 ...
     out.sort(key=lambda a: (a["name"], a["started_at"] or ""))
     seen = {}

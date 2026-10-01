@@ -23,5 +23,8 @@
       "reviewed-by:@me -author:@me"
     ]
   },
-  "notify": "osascript"
+  "notify": "osascript",
+  "cwd_prefixes": [
+    "/Users/bnaylor/src/kube-agents"
+  ]
 }
