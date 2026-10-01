@@ -187,11 +187,13 @@ def apply_roster(state, roster, now):
         row["gone_since"] = None
         _clear_kind(state, name, "orphan")
         if a["status"] == "waiting":
-            owned = _owned_open_prs(state, name)
-            item = add_attention(state, name, "waiting", owned[0] if owned else None,
-                                 "parked on a question or prompt", now)
-            if item:
-                new.append(item)
+            already = any(i["session"] == name and i["kind"] in ("waiting-bnaylor", "waiting-human") for i in state["attention"])
+            if not already:                          # the session announced this stall itself; one item is enough
+                owned = _owned_open_prs(state, name)
+                item = add_attention(state, name, "waiting", owned[0] if owned else None,
+                                     "parked on a question or prompt", now)
+                if item:
+                    new.append(item)
         else:
             _clear_kind(state, name, "waiting")
     for name, row in state["sessions"].items():

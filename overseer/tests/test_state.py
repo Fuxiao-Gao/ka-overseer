@@ -223,3 +223,10 @@ def test_save_state_is_atomic(tmp_path: Path):
     s = S.empty_state()
     S.save_state(s, tmp_path / "state.json")
     assert [p.name for p in tmp_path.iterdir()] == ["state.json"]
+
+
+def test_roster_waiting_does_not_duplicate_an_open_waiting_bnaylor_item():
+    s = S.empty_state()
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-vamp-f5\nprs: none\nstatus: waiting-human: design q\n"), T0)
+    new = S.apply_roster(s, [{"name": "kube-agents-vamp-f5", "status": "waiting", "kind": "interactive", "started_at": T0}], T1)
+    assert new == [] and [i["kind"] for i in s["attention"]] == ["waiting-human"]

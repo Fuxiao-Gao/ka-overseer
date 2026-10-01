@@ -28,8 +28,9 @@ def test_classify_real_pr():
     assert row["branch"] == "fix/tasks-budget-reads-bridge-concurrency"
     assert row["rounds"] == sum(1 for r in FIX["reviews"] if r["author"]["login"] == "kube-agents-bot")
     assert row["advisory_rounds"] == sum(1 for r in FIX["reviews"] if r["author"]["login"] == "kyber775")
-    assert row["approved"] is True and row["lgtm"] is False and row["hold"] is False
-    assert row["reviewers"] == ["jayantid"]
+    labels = {l["name"] for l in FIX["labels"]}
+    assert row["approved"] is ("approved" in labels) and row["lgtm"] is ("lgtm" in labels) and row["hold"] is ("do-not-merge/hold" in labels)
+    assert row["reviewers"] == [r.get("login") or r.get("name") for r in FIX["reviewRequests"]]
     assert row["unresolved_threads"] == 0
     assert row["checks"] == "green"
     assert row["state"] == "OPEN" and row["draft"] is False

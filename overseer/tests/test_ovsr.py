@@ -40,7 +40,7 @@ def test_unparseable_report_exits_2(tmp_path, monkeypatch, capsys):
 
 def test_tick_without_gh_applies_roster_and_computes_actions(tmp_path, monkeypatch, capsys):
     d = setup(tmp_path, monkeypatch)
-    (Path(d) / "roster.json").write_text(json.dumps({"ts": "2026-10-01T20:00:00Z", "sessions": [
+    (Path(d) / "roster.json").write_text(json.dumps({"ts": S.now_iso(), "sessions": [
         {"name": "kube-agents-vamp-7", "status": "idle", "kind": "interactive", "started_at": "2026-01-01T00:00:00Z"}]}))
     assert ovsr.main(["--dir", d, "tick", "--no-gh", "--session", "kube-agents-vamp-65", "--next-wake", "2026-10-01T20:15:00Z"]) == 0
     out = json.loads(capsys.readouterr().out)
@@ -53,7 +53,7 @@ def test_tick_without_gh_applies_roster_and_computes_actions(tmp_path, monkeypat
 
 def test_tick_notifies_new_attention_once(tmp_path, monkeypatch, capsys):
     d = setup(tmp_path, monkeypatch)
-    (Path(d) / "roster.json").write_text(json.dumps({"ts": "2026-10-01T20:00:00Z", "sessions": [
+    (Path(d) / "roster.json").write_text(json.dumps({"ts": S.now_iso(), "sessions": [
         {"name": "kube-agents-vamp-7", "status": "waiting", "kind": "interactive", "started_at": "2026-01-01T00:00:00Z"}]}))
     ovsr.main(["--dir", d, "tick", "--no-gh"])
     ovsr.main(["--dir", d, "tick", "--no-gh"])
@@ -112,7 +112,7 @@ def test_rebuild_from_log(tmp_path, monkeypatch, capsys):
 
 def test_tick_never_intros_the_overseer_itself(tmp_path, monkeypatch, capsys):
     d = setup(tmp_path, monkeypatch)
-    (Path(d) / "roster.json").write_text(json.dumps({"ts": "2026-10-01T20:00:00Z", "sessions": [
+    (Path(d) / "roster.json").write_text(json.dumps({"ts": S.now_iso(), "sessions": [
         {"name": "kube-agents-vamp-65", "status": "busy", "kind": "interactive", "started_at": "2026-01-01T00:00:00Z"},
         {"name": "kube-agents-vamp-7", "status": "idle", "kind": "interactive", "started_at": "2026-01-01T00:00:00Z"}]}))
     ovsr.main(["--dir", d, "tick", "--no-gh", "--session", "kube-agents-vamp-65"])
@@ -122,7 +122,7 @@ def test_tick_never_intros_the_overseer_itself(tmp_path, monkeypatch, capsys):
 
 def test_tick_fills_in_the_overseers_own_row(tmp_path, monkeypatch, capsys):
     d = setup(tmp_path, monkeypatch)
-    (Path(d) / "roster.json").write_text(json.dumps({"ts": "2026-10-01T20:00:00Z", "sessions": [
+    (Path(d) / "roster.json").write_text(json.dumps({"ts": S.now_iso(), "sessions": [
         {"name": "kube-agents-vamp-65", "status": "busy", "kind": "interactive", "started_at": "2026-01-01T00:00:00Z"}]}))
     ovsr.main(["--dir", d, "tick", "--no-gh", "--session", "kube-agents-vamp-65"])
     me = S.load_state(Path(d) / "state.json")["sessions"]["kube-agents-vamp-65"]
