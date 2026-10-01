@@ -45,3 +45,12 @@ def test_entry_without_status_is_kept_as_unknown_not_a_crash():
     row = next(a for a in out if a["name"] == "kube-agents-vamp-new")
     assert row["status"] == "unknown"
     assert "kube-agents-vamp-new" not in R.newly_waiting(None, out)
+
+
+def test_duplicate_names_keep_the_oldest_and_suffix_the_rest():
+    raw = RAW + [{"pid": 11, "cwd": "/x", "kind": "interactive", "startedAt": 1790000500000, "sessionId": "z", "name": "kube-agents-vamp-d4", "status": "waiting"}]
+    out = R.filter_roster(raw)
+    names = [a["name"] for a in out]
+    assert names.count("kube-agents-vamp-d4") == 1
+    assert "kube-agents-vamp-d4~2" in names
+    assert next(a for a in out if a["name"] == "kube-agents-vamp-d4")["status"] == "busy"      # the older one keeps the name

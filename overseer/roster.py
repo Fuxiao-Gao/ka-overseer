@@ -22,6 +22,14 @@ def filter_roster(agents):
     out = [{"name": a["name"], "status": a.get("status") or "unknown", "kind": a.get("kind"),
             "started_at": _iso(a["startedAt"]) if a.get("startedAt") else None}
            for a in agents if a.get("name") and SCOPE.match(a["name"])]
+    # names can collide (the suffix is two hex digits); the oldest keeps the name, later ones get ~2, ~3 ...
+    out.sort(key=lambda a: (a["name"], a["started_at"] or ""))
+    seen = {}
+    for a in out:
+        n = seen.get(a["name"], 0) + 1
+        seen[a["name"]] = n
+        if n > 1:
+            a["name"] = f"{a['name']}~{n}"
     return sorted(out, key=lambda a: a["name"])
 
 
