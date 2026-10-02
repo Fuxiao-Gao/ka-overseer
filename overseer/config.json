@@ -1,7 +1,7 @@
 {
   "repo": "gke-labs/kube-agents",
-  "human": "the human",
-  "human_short": "human",
+  "human": "Fuxiao",
+  "human_short": "Fuxiao",
   "session_pattern": "^(kube-agents-|overseer)",
   "gating_bot": "kube-agents-bot",
   "advisory_bot": "kyber775",
@@ -25,6 +25,10 @@
   },
   "notify": "osascript",
   "cwd_prefixes": [
-    "/Users/bnaylor/src/kube-agents"
+    "/Users/fuxiaogao/ws1",
+    "/Users/fuxiaogao/ws2",
+    "/Users/fuxiaogao/ws3",
+    "/Users/fuxiaogao/ws4",
+    "/Users/fuxiaogao/ws5"
   ]
 }

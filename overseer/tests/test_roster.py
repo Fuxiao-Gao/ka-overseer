@@ -1,6 +1,7 @@
 # overseer/tests/test_roster.py
 import json
 import roster as R
+from config import CFG
 
 RAW = [
     {"pid": 1, "cwd": "/x", "kind": "interactive", "startedAt": 1790000000000, "sessionId": "a", "name": "kube-agents-vamp-d4", "status": "busy"},
@@ -57,7 +58,7 @@ def test_duplicate_names_keep_the_oldest_and_suffix_the_rest():
 
 
 def test_sessions_in_a_kube_agents_checkout_are_in_scope_whatever_their_name():
-    raw = RAW + [{"pid": 12, "cwd": "/Users/bnaylor/src/kube-agents-fork/.worktrees/sessions-p1", "kind": "interactive", "startedAt": 1790000000000, "sessionId": "w", "name": "sessions-p1-59", "status": "busy"},
-                 {"pid": 13, "cwd": "/Users/bnaylor/src/iris", "kind": "interactive", "startedAt": 1790000000000, "sessionId": "i", "name": "iris-7e", "status": "idle"}]
+    raw = RAW + [{"pid": 12, "cwd": CFG["cwd_prefixes"][0] + "-fork/.worktrees/sessions-p1", "kind": "interactive", "startedAt": 1790000000000, "sessionId": "w", "name": "sessions-p1-59", "status": "busy"},
+                 {"pid": 13, "cwd": "/elsewhere/iris", "kind": "interactive", "startedAt": 1790000000000, "sessionId": "i", "name": "iris-7e", "status": "idle"}]
     names = [a["name"] for a in R.filter_roster(raw)]
     assert "sessions-p1-59" in names and "iris-7e" not in names and "home" not in names

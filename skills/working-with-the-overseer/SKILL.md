@@ -17,7 +17,7 @@ advice you may decline with a reason. It cannot answer for the human on its own,
 
 Files: `docs/protocol.md` (wire format), `docs/rules.md` (numbered rules),
 `docs/escalation.md` (what it watches), `overseer/dashboard.html` (what the human sees),
-all in `<ka-overseer>`.
+all in `/Users/fuxiaogao/ws5/ka-overseer`.
 
 ## First: learn your own name
 
@@ -27,7 +27,7 @@ name. Nothing else tells you your name.
 ## The report
 
 Send this with `SendMessage` to the Overseer: the session named in the INTRO you got.
-Not introduced yet? `cat <ka-overseer>/overseer/OVERSEER` prints the Overseer's session name, nothing else; send there.
+Not introduced yet? `cat /Users/fuxiaogao/ws5/ka-overseer/overseer/OVERSEER` prints the Overseer's session name, nothing else; send there.
 (Do not grep state.json for "session": it has one per row and per attention item.) Six lines max, first line verbatim:
 
 ```
@@ -60,7 +60,7 @@ verdict, and keep `prs:` as `none` unless you actually drive a PR.
 The Overseer's table already knows who owns every tracked PR. Check it before asking peers:
 
 ```
-python3 -c "import json;s=json.load(open('<ka-overseer>/overseer/state.json'));print({n:p['owner'] for n,p in s['prs'].items()})"
+python3 -c "import json;s=json.load(open('/Users/fuxiaogao/ws5/ka-overseer/overseer/state.json'));print({n:p['owner'] for n,p in s['prs'].items()})"
 ```
 
 An owner listed there is authoritative; do not adopt that PR. A PR with no owner is open for adoption under your brief's usual rule.

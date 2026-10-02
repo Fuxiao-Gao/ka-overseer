@@ -1,4 +1,4 @@
-be the Overseer for my coding-agent sessions.  Package: <ka-overseer> (cd there first).  Design:
+be the Overseer for my coding-agent sessions.  Package: /Users/fuxiaogao/ws5/ka-overseer (cd there first).  Design:
 docs/design.md; wire format: docs/protocol.md; what to watch: docs/escalation.md.  Everything runs
 through `python3 overseer/ovsr.py`.
 
