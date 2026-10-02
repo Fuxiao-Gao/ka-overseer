@@ -130,3 +130,9 @@ def test_last_activity_is_the_latest_real_event_not_updated_at():
     assert row["updated_at"] == "2026-10-02T00:00:00Z"
     bare = G.classify_pr({"updatedAt": "2026-10-01T00:00:00Z"}, 0)   # nothing but updatedAt: fall back to it
     assert bare["last_activity"] == "2026-10-01T00:00:00Z"
+
+
+def test_optional_next_lane_does_not_make_a_pr_red():
+    rollup = [{"__typename": "StatusContext", "context": "pull-kube-agents-smoke-test-next", "state": "FAILURE"},
+              {"__typename": "StatusContext", "context": "pull-kube-agents-smoke-test", "state": "SUCCESS"}]
+    assert G.checks_state(rollup) == "green"

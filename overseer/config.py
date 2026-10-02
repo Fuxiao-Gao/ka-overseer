@@ -11,7 +11,7 @@ DEFAULTS = {
     "gating_bot": "kube-agents-bot",
     "advisory_bot": "kyber775",
     "round_cap": 6,
-    "ignored_check_contexts": ["tide"],
+    "ignored_check_contexts": ["tide", "pull-kube-agents-smoke-test-next"],
     "scope_queries": {
         "mine": ["--author", "@me"],
         "review_requested": ["--search", "review-requested:@me"],

@@ -7,7 +7,8 @@
   "advisory_bot": "kyber775",
   "round_cap": 6,
   "ignored_check_contexts": [
-    "tide"
+    "tide",
+    "pull-kube-agents-smoke-test-next"
   ],
   "scope_queries": {
     "mine": [

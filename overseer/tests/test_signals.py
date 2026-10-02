@@ -150,3 +150,12 @@ def test_introd_session_that_never_reports_is_still_escalated():
     s["prs"]["5"].update(checks="red", last_activity=T0)
     a = types(X.compute_actions(s, T_PLUS_3H), "PING")
     assert a and a[0]["kind"] == "red" and a[0]["ladder"] == 1
+
+
+def test_waiting_review_with_clean_pr_is_not_pinged_as_stalled():
+    s = base()
+    s["sessions"]["kube-agents-vamp-1"]["status"] = "waiting-review"
+    s["prs"]["5"].update(last_activity="2026-10-01T18:30:00Z", checks="pending", unresolved_threads=0)
+    assert types(X.compute_actions(s, T_PLUS_3H), "PING") == []           # parked on a human; Tide/label churn is not a reason to ping
+    s["prs"]["5"]["unresolved_threads"] = 2
+    assert types(X.compute_actions(s, T_PLUS_3H), "PING") != []           # a new thread is
