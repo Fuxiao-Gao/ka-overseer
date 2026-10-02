@@ -181,3 +181,10 @@ def test_pr_with_lgtm_and_nothing_open_is_not_a_stall_whatever_the_status_word()
     s["prs"]["5"].update(last_activity="2026-10-01T18:30:00Z", checks="green", unresolved_threads=0, lgtm=True)
     s["sessions"]["kube-agents-vamp-1"]["status"] = "working"
     assert types(X.compute_actions(s, T_PLUS_3H), "PING") == []     # Tide owns it; the owner has nothing to do
+
+
+def test_held_pr_threads_are_not_a_stall():
+    s = base()
+    s["prs"]["5"].update(unresolved_threads=3, last_activity=T0, hold=True)
+    s["sessions"]["kube-agents-vamp-1"]["last_report"] = T0
+    assert types(X.compute_actions(s, T_PLUS_3H), "PING") == []     # a /hold parks the PR on purpose; its threads wait with it

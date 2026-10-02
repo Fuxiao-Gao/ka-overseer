@@ -76,9 +76,9 @@ def compute_actions(state, now, default_cadence_min=30):
                     and silent is not None and silent >= timedelta(hours=RED_HOURS):
                 _escalate(state, now, name, row, num, "red", f"#{num} red for over {RED_HOURS}h, owner silent", actions)
                 pinged_this_pass = True
-            elif (p.get("unresolved_threads") or 0) > 0 and moved is not None \
+            elif (p.get("unresolved_threads") or 0) > 0 and not p.get("hold") and moved is not None \
                     and moved >= timedelta(hours=THREADS_HOURS) and silent is not None \
-                    and silent >= timedelta(hours=THREADS_HOURS):
+                    and silent >= timedelta(hours=THREADS_HOURS):      # a held PR is parked on purpose; its threads wait with it
                 _escalate(state, now, name, row, num, "threads",
                           f"#{num} has {p['unresolved_threads']} unresolved threads untouched {THREADS_HOURS}h+, owner silent", actions)
                 pinged_this_pass = True
