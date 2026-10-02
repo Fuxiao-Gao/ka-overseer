@@ -9,7 +9,7 @@ THREADS_HOURS = 2
 RED_HOURS = 1
 NO_REVIEWER_HOURS = 24
 INTRO_GRACE_MIN = 5          # short-lived sessions come and go; do not INTRO until one has lived this long
-SKIP_PING = {"waiting", "gone"}
+SKIP_PING = {"waiting"}          # gone sessions never reach the ladder: compute_actions skips them
 
 
 def _age(now, ts):
@@ -45,7 +45,7 @@ def compute_actions(state, now, default_cadence_min=30):
     actions = []
     me = (state.get("overseer") or {}).get("session")
     for name, row in state["sessions"].items():
-        if row["roster_status"] == "gone" or name == me:
+        if not S.is_live(state, name) or name == me:
             continue
         if row["last_report"] is None and row["last_poke"] is None:
             lived = _age(now, row.get("started_at"))

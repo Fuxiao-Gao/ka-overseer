@@ -103,6 +103,14 @@ def test_gone_and_waiting_sessions_are_not_pinged():
     assert types(X.compute_actions(s, T_PLUS_70M), "PING") == []
 
 
+def test_a_session_back_by_report_is_escalated_like_a_live_one():
+    s = base()
+    s["prs"]["5"]["last_activity"] = "2026-10-01T18:30:00Z"
+    s["sessions"]["kube-agents-vamp-1"].update(roster_status="gone", gone_since="2026-10-01T17:00:00Z")
+    assert S.is_live(s, "kube-agents-vamp-1")
+    assert types(X.compute_actions(s, T_PLUS_70M), "PING") != []
+
+
 def test_apply_actions_bumps_ladder_and_opens_items():
     s = base()
     s["prs"]["5"]["last_activity"] = "2026-10-01T18:30:00Z"
