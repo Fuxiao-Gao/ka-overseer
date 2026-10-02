@@ -83,8 +83,10 @@ def compute_actions(state, now, default_cadence_min=30):
                           f"#{num} has {p['unresolved_threads']} unresolved threads untouched {THREADS_HOURS}h+, owner silent", actions)
                 pinged_this_pass = True
             elif moved_after_report and silent is not None and silent >= SILENT_FACTOR * cadence \
-                    and not (row["status"] == "waiting-review" and (p.get("unresolved_threads") or 0) == 0):
-                # a PR parked on a human moves for Tide and label reasons; only new threads or a red make it a stall
+                    and not ((row["status"] == "waiting-review" or (p.get("lgtm") and p.get("checks") == "green"))
+                             and (p.get("unresolved_threads") or 0) == 0):
+                # a PR parked on a human, or lgtm'd and green (Tide owns it), moves for Tide and label reasons;
+                # only new threads or a red make it a stall
                 _escalate(state, now, name, row, num, "stalled",
                           f"#{num} moved since your last report and you have been silent {int(silent.total_seconds() // 60)}m", actions)
                 pinged_this_pass = True
