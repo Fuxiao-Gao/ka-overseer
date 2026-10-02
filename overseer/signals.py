@@ -60,7 +60,7 @@ def compute_actions(state, now, default_cadence_min=30):
         for num, p in owned:
             # round cap: STOP once
             crossed = (p.get("rounds") or 0) >= ROUND_CAP and p.get("rounds_prev") is not None \
-                and p["rounds"] > p["rounds_prev"]
+                and p["rounds"] > p["rounds_prev"] and row.get("role") != "review-minder"   # a reviewer does not drive rounds
             if crossed and not _open(state, name, "drift-check", num):
                 actions.append(_action("STOP", name, num, "drift-check",
                                        f"#{num} at {p['rounds']} gating rounds (cap {ROUND_CAP}); stop fixing, report drift"))

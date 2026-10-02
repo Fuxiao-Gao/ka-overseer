@@ -159,3 +159,10 @@ def test_waiting_review_with_clean_pr_is_not_pinged_as_stalled():
     assert types(X.compute_actions(s, T_PLUS_3H), "PING") == []           # parked on a human; Tide/label churn is not a reason to ping
     s["prs"]["5"]["unresolved_threads"] = 2
     assert types(X.compute_actions(s, T_PLUS_3H), "PING") != []           # a new thread is
+
+
+def test_review_minder_owned_prs_get_no_cap_stop():
+    s = base()
+    s["sessions"]["kube-agents-vamp-1"]["role"] = "review-minder"
+    s["prs"]["5"].update(rounds=7, rounds_prev=6)
+    assert [a["type"] for a in X.compute_actions(s, T0)] == []          # it reviews the PR; the author drives the rounds
