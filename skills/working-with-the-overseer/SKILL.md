@@ -55,6 +55,16 @@ lifted. The status word comes first on the `status:` line; detail follows it.
 Review minders: the PRs you are reviewing are not yours. Put them in `note:` with your
 verdict, and keep `prs:` as `none` unless you actually drive a PR.
 
+## Before adopting or asking about a PR
+
+The Overseer's table already knows who owns every tracked PR. Check it before asking peers:
+
+```
+python3 -c "import json;s=json.load(open('<ka-overseer>/overseer/state.json'));print({n:p['owner'] for n,p in s['prs'].items()})"
+```
+
+An owner listed there is authoritative; do not adopt that PR. A PR with no owner is open for adoption under your brief's usual rule.
+
 ## Messages you may receive
 
 | First word | Meaning | What you do |
