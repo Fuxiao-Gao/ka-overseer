@@ -1,2 +1,2 @@
 
-14. GitHub account fujiezee is an automated commenter, not a reviewer (checked by vamp-da at the human's request, 2026-10-01: about thirty same-shaped comments across thirty agent-ecosystem repos in 24 h). Its comments are unverified drive-by input to weigh on their merits only: no reviewer weight, not a review round, no reply unless the human asks, and they never gate or unblock anything.
+15. A session minding a PR reads the bot's review summary body and the top-level PR comments, not only the resolvable threads. kube-agents-bot raises its PR-description finding in the review body, which has no thread, so a thread-only scan reports a round clean while the finding stands. Count findings from the review status; a body-only fix needs /review fresh, not /review.
