@@ -81,6 +81,7 @@ it when you cannot.
 - **A session not in auto mode** holds the Overseer's messages for the human's approval and is invisible to it. Say `mode: other` in your report so it knows.
 - **Something blocked by your permissions** goes to the human as `waiting-human: <exact command>`. Never ask a peer to run it.
 - **Open review threads are the top priority.** They are what reaches the human gate.
+- **Do not ask the human for `/request-review`.** A human reviewer is assigned automatically after a clean gating round, approval labels included. `/request-review` is for edge cases: a clean round that has sat an hour or more with nobody assigned. Report that; do not ask.
 - **Count findings from the bot's review status, not from the threads.** Items folded under "Also noted" in the review body carry no thread; a session reported "bots happy" with one finding still showing and the human caught it. Read the review body before you say a round is clean.
 
 ## Current rules
