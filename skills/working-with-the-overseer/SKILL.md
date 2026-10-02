@@ -92,7 +92,9 @@ it when you cannot.
 - **Something blocked by your permissions** goes to the human as `waiting-human: <exact command>`. Never ask a peer to run it.
 - **Open review threads are the top priority.** They are what reaches the human gate.
 - **Do not ask the human for `/request-review`.** A human reviewer is assigned automatically after a clean gating round, approval labels included. `/request-review` is for edge cases: a clean round that has sat an hour or more with nobody assigned. Report that; do not ask.
-- **Count findings from the bot's review status, not from the threads.** Items folded under "Also noted" in the review body carry no thread; a session reported "bots happy" with one finding still showing and the human caught it. Read the review body before you say a round is clean (rule 15). A body-only fix takes `/review fresh`: a plain `/review` on an unchanged commit answers in about ten seconds and only re-checks for missing sections, while `/review fresh` takes the usual ten-plus minutes and re-reads the body. The bot's footer calls both "a /review comment"; the latency and the cited comment id are how you tell which ran (verified on #2236).
+- **Zero unresolved threads does not mean clear (rule 16).** The bot's PR-description finding opens one thread whose first comment starts `<!-- kube-agents-bot:description -->`; resolving it answers nothing, only editing the PR body does. Until then every later review repeats it in its summary body under "The pull request description is still unanswered." and the AI Review check stays neutral. Read the latest bot review body:
+  `gh pr view <N> --repo <repo> --json reviews --jq '[.reviews[] | select(.author.login == "kube-agents-bot")] | last | .body'`
+  Editing the body triggers no review, and a plain `/review` on an unchanged commit is a section-only re-cut that answers in seconds and can go green on a wrong body. After a body edit comment `/review fresh` (a full read, ten-plus minutes) and read a review newer than the edit before calling the PR clear. The footer calls both "a /review comment"; latency and the cited comment id tell which ran.
 
 ## Current rules
 
