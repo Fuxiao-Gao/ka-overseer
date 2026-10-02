@@ -83,7 +83,7 @@ Each of these has stalled a loop here. The Overseer sees a session parked on a q
 within a minute, but only the human can release it, so avoid parking when you can and announce
 it when you cannot.
 
-- **Ending a turn on "shall I" or "want me to" is a stall.** Routine judgment calls are yours. Only design calls, destructive actions, new rules or regexes, and anything your permissions block go to the human. When one does, send `waiting-human` first, then ask.
+- **Ending a turn on "shall I" or "want me to" is a stall.** Routine judgment calls are yours. Only design calls, destructive actions, new rules or regexes, and anything your permissions block go to the human. When one does, send `waiting-human` first, then ask. If the repo's own agent instructions reserve a class of decision for the human (kube-agents' AGENTS.md does this for post-PR bot findings: summarise, recommend, let the user decide before changing code), that class is theirs too; build locally while you wait, but no Overseer ruling releases the push.
 - **While parked on a question, nothing the Overseer sends reaches you** until the human answers. Never wait on the Overseer for anything while parked.
 - **A `/review` you believe you posted but never verified landed.** Read the comment back.
 - **A `/hold` without a clearance criterion** in the same comment. Nothing can lift it.

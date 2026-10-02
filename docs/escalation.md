@@ -62,3 +62,11 @@ Notification: `osascript -e 'display notification "<session>: <what>" with title
 `orphan`, `drift-check`, `stalled`, `red`, `threads`, `no-reviewer`,
 `ownership-conflict`, `gone-question`. An id notifies once. The same id reopened after being cleared
 notifies again.
+
+## Rulings the Overseer may not make
+
+- **Decisions the repo reserves for the human.** If the target repo's agent instructions say the user
+  decides something before code changes (kube-agents: post-PR bot findings, fix / push back / defer),
+  a session sitting `waiting-human` on it is correct, not stalled. Keep the item on the band with the
+  session's recommendation attached; an Overseer "it's your call" does not release it. Verify such
+  clauses against the upstream default branch, not a local checkout.
