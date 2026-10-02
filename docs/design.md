@@ -169,7 +169,9 @@ Ladder for a non-reporting session: PING with an idle subscription (1) → next 
 again (2) → attention item and one notification (3). The idle notice carries a summary of the
 session's last turn, so a session that forgets to report still tells the Overseer what it did. The ladder resets on any
 report. An attention item notifies once and persists until the session reports a different
-status or the human clears it. No repeat notifications for the same item.
+status, the facts overtake it, or the human clears it. No repeat notifications for the same item.
+The facts that clear an item without a report (a gone session's leftovers after a restart or
+rename) are listed in `escalation.md`.
 
 Notification: `osascript -e 'display notification "<session>: <what>" with title "Overseer"'`.
 
@@ -203,7 +205,7 @@ Static page, `<meta http-equiv="refresh" content="60">`, state and roster embedd
 ages computed client-side so they tick between renders. One line per cell, long notes truncate
 with full text on hover. Colour and status encoding follow the dataviz skill.
 
-1. **Attention band** at the top. One row per item, oldest first: session, PR, age, what. Empty state is one quiet green line. This is the only red on the page.
+1. **Attention band** at the top. One row per item, oldest first: session, PR, age, what. Empty state is one quiet green line. This is the only red on the page. `gone-question` notes (a gone session's unanswered question) sit in a muted table below it and do not count against the green line.
 2. **Sessions table.** Name, role, theme, driver and cadence, roster status, reported status, PRs, last report age, last activity age, rules acknowledged, note. Rows tint by status. Age past 2x cadence highlights. Gone sessions grey.
 3. **PRs table.** Number and title, owner, mergeability, checks, unresolved threads, gating rounds (highlight at 6), advisory rounds (muted), hold, lgtm, approved, reviewers, last activity age, drift. Sorted nearest-the-gate first: zero threads and green checks at the top.
 4. **Footer.** Rendered when, rules version in force, next Overseer wake.
@@ -281,7 +283,7 @@ file path. New sessions get it from the listing.
 
 - `gh_snapshot.py` on #2077 reports rounds equal to the count of `kube-agents-bot` reviews visible on the PR, and threads equal to the unresolved count on the GitHub page.
 - A synthetic report parsed by the merge step produces the expected session row, and a report with `waiting-human` produces an attention item and exactly one notification.
-- `render.py` on a state with an empty attention list shows the green line; with one item, the red band.
+- `render.py` on a state with an empty attention list shows the green line; with one item other than a `gone-question` note, the red band.
 - One live INTRO to a real session returns a report in the schema.
 - `watch.sh` with a session entering `waiting` fires exactly one notification and the dashboard status column shows `waiting` within a minute.
 - The question-tool spike is done (see Spike learnings); the permission-prompt case is still an assumption.

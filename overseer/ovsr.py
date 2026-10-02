@@ -137,6 +137,7 @@ def cmd_tick(p, a):
     if not a.no_gh:
         res = G.snapshot(state, G.scope_numbers(state), now=now)
         gh_errors = {str(k): v for k, v in res["errors"].items()}
+    new += S.raise_orphans(state, now, fresh=not a.no_gh)   # after the snapshot: a dropped PR that merged raises nothing
     actions = X.compute_actions(state, now)
     new += X.apply_actions(state, actions, now)
     retired = S.retire_due(state, now)
@@ -172,7 +173,7 @@ def cmd_assign(p, a):
     state = _load(p)
     pr = S.pr(state, a.pr)
     previous = pr["owner"]
-    pr["owner"] = a.session
+    S.hand_off(state, a.pr, a.session)
     pr["hazards"] = a.hazards
     S.session(state, a.session)
     _finish(p, state)
@@ -200,6 +201,8 @@ def cmd_attention(p, a):
     state = _load(p)
     pr = int(a.pr) if a.pr not in (None, "-", "") else None
     item = S.add_attention(state, a.session, a.kind, pr, a.what, S.now_iso())
+    if item:
+        item["manual"] = True          # judgment, not a fact: S.sweep never drops it
     _finish(p, state)
     return 0 if item else 1
 
