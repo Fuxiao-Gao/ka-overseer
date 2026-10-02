@@ -137,6 +137,7 @@ def cmd_tick(p, a):
     if not a.no_gh:
         res = G.snapshot(state, G.scope_numbers(state), now=now)
         gh_errors = {str(k): v for k, v in res["errors"].items()}
+    new += S.raise_orphans(state, now, fresh=not a.no_gh)   # after the snapshot: a dropped PR that merged raises nothing
     actions = X.compute_actions(state, now)
     new += X.apply_actions(state, actions, now)
     retired = S.retire_due(state, now)
@@ -172,7 +173,7 @@ def cmd_assign(p, a):
     state = _load(p)
     pr = S.pr(state, a.pr)
     previous = pr["owner"]
-    pr["owner"] = a.session
+    S.hand_off(state, a.pr, a.session)
     pr["hazards"] = a.hazards
     S.session(state, a.session)
     _finish(p, state)

@@ -21,6 +21,22 @@ def sample():
     return s
 
 
+def test_a_gone_question_is_a_muted_note_not_the_red_band():
+    s = sample()
+    S.add_attention(s, "kube-agents-vamp-2", "gone-question", None, "gone while waiting on you: ship it?", T0)
+    html = V.render(s, None, T0)
+    assert "Nothing is waiting on you" in html and 'class="attention red"' not in html
+    assert 'class="attention note"' in html and "gone while waiting on you: ship it?" in html
+
+
+def test_a_session_back_by_report_is_not_rendered_gone():
+    s = sample()
+    s["sessions"]["kube-agents-vamp-2"]["last_report"] = "2026-10-01T20:05:00Z"   # after gone_since T0
+    for roster in (None, [{"name": "kube-agents-vamp-1", "status": "busy"}]):
+        html = V.render(s, roster, T0)
+        assert '<tr class="row gone"><td>kube-agents-vamp-2</td>' not in html
+
+
 def test_empty_attention_shows_green_line():
     html = V.render(S.empty_state(), None, T0)
     assert "Nothing is waiting on you" in html

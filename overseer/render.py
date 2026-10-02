@@ -23,6 +23,7 @@ h1{font-size:16px;margin:0 0 8px}h2{font-size:13px;color:var(--ink2);margin:18px
 .attention{border-radius:6px;padding:8px 12px;margin-bottom:6px}
 .attention.red{background:var(--band);border-left:4px solid var(--critical)}
 .attention.green{background:var(--goodband);border-left:4px solid var(--good);color:var(--ink2)}
+.attention.note{background:var(--tint);border-left:4px solid var(--muted);color:var(--ink2)}
 .attention table{margin:0}
 table{border-collapse:collapse;width:100%}th{text-align:left;color:var(--muted);font-weight:500;padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:28em;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
@@ -70,16 +71,24 @@ def yn(v):
     return "yes" if v else ("no" if v is False else "—")
 
 
-def _attention(state):
-    items = sorted(state["attention"], key=lambda i: i["since"])
-    if not items:
-        return '<div class="attention green">✓ Nothing is waiting on you.</div>'
+NOTE_KINDS = {"gone-question"}     # shown, but nothing can answer it: no red band
+
+
+def _attention_table(items, cls):
     rows = "".join(
         f"<tr><td>{e(i['session'])}</td><td>{pr_link(i['pr']) if i['pr'] else '—'}</td>"
         f"<td>{ts(i['since'])}</td><td>{e(i['kind'])}</td><td title=\"{e(i['what'])}\">{L(i['what'])}</td></tr>"
         for i in items)
-    return (f'<div class="attention red"><table><tr><th>session</th><th>PR</th><th>for</th><th>kind</th><th>what</th></tr>'
+    return (f'<div class="attention {cls}"><table><tr><th>session</th><th>PR</th><th>for</th><th>kind</th><th>what</th></tr>'
             f"{rows}</table></div>")
+
+
+def _attention(state):
+    items = sorted(state["attention"], key=lambda i: i["since"])
+    loud = [i for i in items if i["kind"] not in NOTE_KINDS]
+    notes = [i for i in items if i["kind"] in NOTE_KINDS]
+    head = _attention_table(loud, "red") if loud else '<div class="attention green">✓ Nothing is waiting on you.</div>'
+    return head + (_attention_table(notes, "note") if notes else "")
 
 
 def _sessions(state, roster):
@@ -90,6 +99,8 @@ def _sessions(state, roster):
         rs = r["roster_status"]
         if roster is not None:
             rs = live.get(name, "gone" if rs else None)
+        if rs == "gone" and r["roster_status"] == "gone" and S.is_live(state, name):
+            rs = None                    # reported since it left; the roster has not caught up
         cls = "gone" if rs == "gone" else ("waiting" if rs == "waiting" else "")
         cadence = r["cadence_min"]
         stale = cadence * 2 if cadence else None

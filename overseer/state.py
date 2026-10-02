@@ -39,7 +39,30 @@ def load_state(path):
     s["overseer"] = {**empty_state()["overseer"], **(s.get("overseer") or {})}
     s["sessions"] = {k: {**_session_row(), **v} for k, v in s["sessions"].items()}
     s["prs"] = {k: {**_pr_row(), **v} for k, v in s["prs"].items()}
+    for i in s["attention"]:      # items saved before the manual flag: only provably automatic ones may be swept
+        i.setdefault("manual", not _provably_auto(i, s["sessions"]))
     return s
+
+
+_ORPHAN_WHAT = re.compile(r"session gone, owns #(\d+)(?:, #\d+)*; reassign\?")
+_CONFLICT_WHAT = re.compile(r"#(\d+) reported by both (\S+) and (\S+); (\S+) now owner")
+
+
+def _provably_auto(item, sessions):
+    """True when the id and text are exactly what the code writes; any doubt keeps the item for the human."""
+    k, s, n, what = item["kind"], item["session"], item["pr"], item.get("what") or ""
+    if s not in sessions or item["id"] != attention_id(s, k, None if k == "waiting-human" else n):
+        return False
+    if k == "orphan":
+        m = _ORPHAN_WHAT.fullmatch(what)
+        return bool(m) and int(m.group(1)) == n
+    if k == "ownership-conflict":
+        m = _CONFLICT_WHAT.fullmatch(what)
+        return bool(m) and int(m.group(1)) == n and m.group(3) == m.group(4) == s
+    if k == "waiting-human":
+        row = sessions[s]
+        return row["status"] == "waiting-human" and what == (row["needs"] or "waiting on the human")
+    return True                   # sweep touches no other kind
 
 
 def save_state(state, path):
@@ -67,7 +90,7 @@ def _pr_row():
             "rounds": None, "rounds_prev": None, "advisory_rounds": None, "hold": None, "lgtm": None,
             "approved": None, "reviewers": [], "last_activity": None, "updated_at": None,
             "last_owner_report": None, "owner_belief": None, "drift": None,
-            "snapshot_error": None, "hazards": None}
+            "snapshot_error": None, "hazards": None, "pending_orphan": False}
 
 
 def session(state, name):
@@ -87,7 +110,7 @@ def add_attention(state, session_name, kind, pr_number, what, now):
     if any(i["id"] == item_id for i in state["attention"]):
         return None
     item = {"id": item_id, "session": session_name, "kind": kind, "pr": pr_number,
-            "since": now, "what": what, "notified": False}
+            "since": now, "what": what, "notified": False, "manual": False}
     state["attention"].append(item)
     return item
 
@@ -115,7 +138,7 @@ def apply_report(state, report, now):
     row["last_report"] = now
     row["last_activity"] = now
     row["ladder"] = 0
-    for kind in ("stalled", "red", "threads"):      # the session spoke: silence-driven items are moot
+    for kind in ("stalled", "red", "threads", "gone-question"):      # the session spoke: silence-driven items are moot
         _clear_kind(state, name, kind)
     if report.get("status"):
         row["status"] = report["status"]
@@ -125,14 +148,18 @@ def apply_report(state, report, now):
     reported = sorted(report["prs"])
     for old in row["prs"]:
         if old not in reported and state["prs"].get(str(old), {}).get("owner") == name:
-            claimants = [n for n, r in state["sessions"].items() if n != name and old in r["prs"]]
-            state["prs"][str(old)]["owner"] = claimants[0] if claimants else None
+            heirs = _claimants(state, old, exclude={name}, live_only=True) or _claimants(state, old, exclude={name})
+            heir = heirs[0] if heirs else None
+            hand_off(state, old, heir)
+            if heir and not is_live(state, heir):   # only absent sessions list it; the tick raises the orphan once
+                state["prs"][str(old)]["pending_orphan"] = True   # GitHub is read, so a merge raises nothing
     row["prs"] = reported
     for number, belief in report["prs"].items():
         p = pr(state, number)
         if p["owner"] not in (None, name):
             other = p["owner"]
-            if _is_live(state, other) and number in state["sessions"][other]["prs"]:   # a gone owner cannot drive it
+            disputed = any(i["kind"] == "ownership-conflict" and i["pr"] == number for i in state["attention"])
+            if other in _claimants(state, number, live_only=True) and not disputed:   # a gone owner cannot drive it
                 item = add_attention(state, name, "ownership-conflict", number,
                                      f"#{number} reported by both {other} and {name}; {name} now owner", now)
                 if item:
@@ -174,7 +201,7 @@ def _gone(row):
         row["last_report"] and row["gone_since"] and parse_iso(row["last_report"]) > parse_iso(row["gone_since"]))
 
 
-def _is_live(state, name):
+def is_live(state, name):
     return name in state["sessions"] and not _gone(state["sessions"][name])
 
 
@@ -184,44 +211,120 @@ def _settled(state, now):
             and parse_iso(now) - parse_iso(r["gone_since"]) >= timedelta(minutes=GONE_SWEEP_MIN)}
 
 
+def _claimants(state, number, exclude=(), live_only=False):
+    """Sessions whose last report lists #number, in roster order. The one place that decides who may hold a PR."""
+    return [n for n, r in state["sessions"].items()
+            if number in r["prs"] and n not in exclude and (not live_only or is_live(state, n))]
+
+
+def hand_off(state, number, heir):
+    """The previous owner's belief is not the heir's; drift waits for the heir's own report."""
+    pr(state, number).update(owner=heir, owner_belief=None, last_owner_report=None, drift=None)
+
+
+def _orphan_what(owned):
+    return f"session gone, owns {', '.join('#%d' % n for n in owned)}; reassign?"
+
+
+def _raise_orphan(state, name, now):
+    """Open the absent session's orphan item, or widen its existing one and notify again; None if nothing changed."""
+    owned = _owned_open_prs(state, name)
+    if not owned:
+        return None
+    existing = [i for i in state["attention"] if i["session"] == name and i["kind"] == "orphan"]
+    if not existing:
+        return add_attention(state, name, "orphan", owned[0], _orphan_what(owned), now)
+    item = existing[0]
+    covered = {int(n) for n in re.findall(r"#(\d+)", item["what"])}
+    if item.get("manual") or not set(owned) - covered:
+        return None
+    item.update(pr=owned[0], what=_orphan_what(owned), notified=False)
+    return item
+
+
+def raise_orphans(state, now, fresh=True):
+    """After the GitHub snapshot: a PR a drop handed to an absent session gets an orphan line if it is still open.
+
+    Names only the dropped PR, so an orphan the human cleared stays cleared. Without fresh GitHub
+    data (--no-gh, or this PR's fetch failed) the flag waits for a tick that has it.
+    """
+    new = []
+    if not fresh:
+        return new
+    for number, p in state["prs"].items():
+        if not p.get("pending_orphan") or p.get("snapshot_error"):
+            continue
+        p["pending_orphan"] = False
+        owner, n = p["owner"], int(number)
+        if not owner or is_live(state, owner) or p.get("state") not in OPEN_PR_STATES:
+            continue
+        items = [i for i in state["attention"] if i["session"] == owner and i["kind"] == "orphan"]
+        if any(n in {int(x) for x in re.findall(r"#(\d+)", i["what"])} for i in items):
+            continue
+        auto = next((i for i in items if not i.get("manual")), None)
+        if auto:
+            owned = set(_owned_open_prs(state, owner))
+            names = sorted({int(x) for x in re.findall(r"#(\d+)", auto["what"])} & owned | {n})
+            auto.update(pr=names[0], what=_orphan_what(names), notified=False)
+            item = auto
+        else:
+            item = add_attention(state, owner, "orphan", n, _orphan_what([n]), now)
+        if item and item not in new:
+            new.append(item)
+    return new
+
+
+def _taken_over(state, item):
+    """The question's PR merged or closed, or passed to a live session: someone else carries it now."""
+    p = state["prs"].get(str(item["pr"]), {})
+    owner = p.get("owner")
+    return p.get("state") not in OPEN_PR_STATES or (owner not in (None, item["session"]) and is_live(state, owner))
+
+
 def sweep(state, now):
     """Drop attention items the facts have overtaken; runs after every report and roster pass.
 
     Hand-raised items (`ovsr.py attention`, marked `manual`) are never touched here. A session gone
-    GONE_SWEEP_MIN loses its waiting-human item and its PR claims; an orphan item stays
-    while its PRs have no live claimant, so a PR that really lost its owner still surfaces.
+    GONE_SWEEP_MIN turns its question into a quiet gone-question note and loses its PR claims; an
+    orphan item stays while its PRs have no live claimant, so a PR that really lost its owner still surfaces.
     """
     settled = _settled(state, now)
-
-    def claimants(number):
-        return [n for n, r in state["sessions"].items() if number in r["prs"] and n not in settled]
-
     for name in settled:
-        state["attention"] = [i for i in state["attention"]
-                              if i.get("manual") or not (i["session"] == name and i["kind"] == "waiting-human")]
+        for i in state["attention"]:     # keep the question visible, quietly; it already notified once
+            if i["session"] == name and i["kind"] == "waiting-human" and not i.get("manual"):
+                named = re.search(r"#(\d+)", i["what"])     # only a PR it asked about and listed can overtake it
+                own = int(named.group(1)) if named and int(named.group(1)) in state["sessions"][name]["prs"] else None
+                i.update(id=attention_id(name, "gone-question", None), kind="gone-question", pr=own,
+                         what=f"gone while waiting on you: {i['what']}", notified=True)
         for number in _owned_open_prs(state, name):
-            heirs = [n for n in claimants(number) if _is_live(state, n)]   # never to another absent session
+            heirs = _claimants(state, number, live_only=True)    # never to another absent session
             if heirs:
-                state["prs"][str(number)]["owner"] = heirs[0]
+                hand_off(state, number, heirs[0])
     for item in list(state["attention"]):
         if item.get("manual"):
             continue
-        if item["kind"] == "ownership-conflict" and item["pr"] is not None and len(claimants(item["pr"])) <= 1:
+        if item["kind"] == "ownership-conflict" and item["pr"] is not None \
+                and len(_claimants(state, item["pr"], exclude=settled)) <= 1:
             state["attention"].remove(item)
-        elif item["kind"] == "orphan" and not _owned_open_prs(state, item["session"]):
+        elif item["kind"] == "orphan":
+            owned = _owned_open_prs(state, item["session"])
+            if not owned:
+                state["attention"].remove(item)
+            elif set(owned) <= {int(n) for n in re.findall(r"#(\d+)", item["what"])}:
+                item.update(pr=owned[0], what=_orphan_what(owned))   # narrowed: no second notification
+            # widened: _raise_orphan rewrites it and notifies again
+        elif item["kind"] == "gone-question" and item["pr"] is not None and _taken_over(state, item):
             state["attention"].remove(item)
 
 
 def apply_roster(state, roster, now):
     new = []
     seen = set()
-    returned = []
+    roster = [a for a in roster if a["status"] != "gone"]    # listed but gone is absent: take the gone transition below
     for a in roster:
         name = a["name"]
         seen.add(name)
         row = session(state, name)
-        if row["roster_status"] == "gone":
-            returned.append(name)
         row["kind"] = a.get("kind")
         row["started_at"] = a.get("started_at") or row["started_at"]
         if row["roster_status"] != a["status"]:
@@ -229,6 +332,7 @@ def apply_roster(state, roster, now):
         row["roster_status"] = a["status"]
         row["gone_since"] = None
         _clear_kind(state, name, "orphan")
+        _clear_kind(state, name, "gone-question")    # back on the roster: a live session re-raises what it still needs
         if a["status"] == "waiting":
             already = any(i["session"] == name and i["kind"] in ("waiting-bnaylor", "waiting-human") for i in state["attention"])
             if not already:                          # the session announced this stall itself; one item is enough
@@ -239,16 +343,8 @@ def apply_roster(state, roster, now):
                     new.append(item)
         else:
             _clear_kind(state, name, "waiting")
-    for name in returned:          # a claim made while it was away raised no conflict against it; check now
-        for number in state["sessions"][name]["prs"]:
-            owner = state["prs"].get(str(number), {}).get("owner")
-            if owner not in (None, name) and _is_live(state, owner) and number in state["sessions"][owner]["prs"]:
-                item = add_attention(state, owner, "ownership-conflict", number,
-                                     f"#{number} reported by both {name} and {owner}; {owner} now owner", now)
-                if item:
-                    new.append(item)
     for name, row in state["sessions"].items():
-        if name in seen or _gone(row):     # a gone row that reported since is marked afresh once the report ages
+        if name in seen or (_gone(row) and row["gone_since"]):   # reported since: marked afresh once the report ages
             continue
         recent = row["last_report"] and parse_iso(now) - parse_iso(row["last_report"]) < timedelta(minutes=RECENT_REPORT_MIN)
         if recent:                                   # it just spoke; the watcher has not caught up yet
@@ -256,12 +352,9 @@ def apply_roster(state, roster, now):
         row["roster_status"] = "gone"
         row["gone_since"] = now
         _clear_kind(state, name, "waiting")
-        owned = _owned_open_prs(state, name)
-        if owned:
-            item = add_attention(state, name, "orphan", owned[0],
-                                 f"session gone, owns {', '.join('#%d' % n for n in owned)}; reassign?", now)
-            if item:
-                new.append(item)
+        item = _raise_orphan(state, name, now)
+        if item:
+            new.append(item)
     sweep(state, now)
     state["updated"] = now
     return new
@@ -274,9 +367,9 @@ def retire(state, name, now):
     state["attention"] = [i for i in state["attention"] if i["session"] != name]
     state["retired"].append({"session": name, "role": row["role"], "theme": row["theme"],
                              "retired_at": now, "prs_at_exit": row["prs"]})
-    for p in state["prs"].values():
+    for number, p in state["prs"].items():
         if p["owner"] == name:
-            p["owner"] = None
+            hand_off(state, number, None)
     return True
 
 

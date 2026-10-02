@@ -26,17 +26,33 @@ Facts that clear an item without a report, checked after every report and roster
 restart or rename leaves the old name gone while the new name carries on, and these keep
 its leftovers off the band:
 
-- A session that reports after leaving the roster counts as back, before the watcher sees it.
-- No ownership conflict is raised against a gone owner. If that owner returns still listing
-  the PR, the conflict is raised then. A conflict clears once at most one session lists the
-  PR, not counting sessions gone 10 minutes.
-- An orphan clears once the gone session owns no open PR (another session claimed it, or it merged or closed).
-- A session gone 10 minutes loses its `waiting-human` item, and each PR it owns passes to
-  a live session that lists it. With no such session, the orphan stays.
-- A session that reported after leaving is not retired on the strength of the old departure.
+- A session that reports after leaving the roster counts as back, before the watcher sees
+  it, and is not retired on the strength of the old departure. A roster entry whose status
+  is `gone` counts as absent.
+- No ownership conflict is raised against a gone owner. If that owner reports the PR again
+  after it returns, the conflict is raised then. A disputed PR carries one conflict item,
+  which clears once at most one session lists the PR, not counting sessions gone 10 minutes.
+- An orphan clears once the gone session owns no open PR (another session claimed it, or it
+  merged or closed). While some remain, its PR and text narrow to them without a second
+  notification. A gone session keeps one orphan item.
+- A session gone 10 minutes passes each PR it owns to a live session that lists it. With no
+  such session, the orphan stays. A PR dropped by its owner goes to a live session that lists
+  it; if only gone sessions list it, it goes to one of them. The next tick with fresh GitHub
+  data then names that PR in the session's orphan (a new line, or added to its automatic
+  orphan, which notifies again) if the PR is still open. A PR dropped because it merged
+  raises nothing, and an orphan the human cleared stays cleared. The gone transition itself
+  still raises its orphan before that tick's GitHub read, as before.
+- On every hand-off, including `ovsr.py assign` and retire, the previous owner's reported
+  rounds, threads and hold are dropped; drift waits for the new owner's own report.
+- A session gone 10 minutes with an open `waiting-human` question keeps it on the dashboard
+  as a quiet `gone-question` note ("gone while waiting on you: ..."): below the band, no
+  second notification. The note clears when the session reports or reappears, when a PR the
+  question names and the session listed merges, closes, or passes to a live session, at
+  retire, or by hand.
 - Items opened by hand with `ovsr.py attention` are marked manual and never swept by these
-  rules. The older clears still apply to them: a different reported status clears
-  `waiting-human`, and retire drops everything the session had.
+  rules. Items saved before the flag existed are marked manual on load unless their id and
+  text match what the code writes. The older clears still apply to manual items: a different
+  reported status clears `waiting-human`, and retire drops everything the session had.
 
 Notification: `osascript -e 'display notification "<session>: <what>" with title "Overseer"'`.
 
@@ -44,5 +60,5 @@ Notification: `osascript -e 'display notification "<session>: <what>" with title
 
 `<session>:<kind>:<pr or ->` where kind is one of `waiting-human`, `waiting`,
 `orphan`, `drift-check`, `stalled`, `red`, `threads`, `no-reviewer`,
-`ownership-conflict`. An id notifies once. The same id reopened after being cleared
+`ownership-conflict`, `gone-question`. An id notifies once. The same id reopened after being cleared
 notifies again.

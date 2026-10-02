@@ -85,6 +85,36 @@ def test_assign_sets_owner_and_prints_message(tmp_path, monkeypatch, capsys):
     assert st["prs"]["2077"]["owner"] == "kube-agents-vamp-7" and st["prs"]["2077"]["hazards"] == "edits manifests.go"
 
 
+def test_tick_raises_the_orphan_for_a_pr_dropped_onto_a_gone_session(tmp_path, monkeypatch, capsys):
+    d = setup(tmp_path, monkeypatch)
+    st = S.empty_state()
+    S.session(st, "kube-agents-a").update(roster_status="gone", gone_since="2026-10-01T19:00:00Z",
+                                          last_report="2026-10-01T18:00:00Z", prs=[5])
+    S.pr(st, 5).update(owner="kube-agents-a", state="OPEN", pending_orphan=True)
+    S.save_state(st, Path(d) / "state.json")
+    (Path(d) / "roster.json").write_text(json.dumps({"ts": S.now_iso(), "sessions": []}))
+    assert ovsr.main(["--dir", d, "tick", "--no-gh", "--session", "overseer"]) == 0      # no fresh GitHub: wait
+    st = S.load_state(Path(d) / "state.json")
+    assert st["attention"] == [] and st["prs"]["5"]["pending_orphan"] is True
+    monkeypatch.setattr(ovsr.G, "scope_numbers", lambda state: [5])
+    monkeypatch.setattr(ovsr.G, "snapshot", lambda state, numbers, now: {"errors": {}})   # GitHub says still open
+    assert ovsr.main(["--dir", d, "tick", "--session", "overseer"]) == 0
+    st = S.load_state(Path(d) / "state.json")
+    assert [i["id"] for i in st["attention"]] == ["kube-agents-a:orphan:5"] and st["prs"]["5"]["pending_orphan"] is False
+
+
+def test_assign_drops_the_previous_owners_belief(tmp_path, monkeypatch, capsys):
+    d = setup(tmp_path, monkeypatch)
+    st = S.empty_state()
+    S.pr(st, 5).update(owner="kube-agents-x", owner_belief={"rounds": 3, "threads": 0, "hold": True},
+                       last_owner_report="2026-10-01T20:00:00Z", drift="owner says rounds 3, GitHub 6")
+    S.save_state(st, Path(d) / "state.json")
+    assert ovsr.main(["--dir", d, "assign", "5", "kube-agents-y"]) == 0
+    p = S.load_state(Path(d) / "state.json")["prs"]["5"]
+    assert p["owner"] == "kube-agents-y"
+    assert p["owner_belief"] is None and p["last_owner_report"] is None and p["drift"] is None
+
+
 def test_sent_retire_clear_intro(tmp_path, monkeypatch, capsys):
     d = setup(tmp_path, monkeypatch)
     monkeypatch.setattr("sys.stdin", io.StringIO(REPORT))
