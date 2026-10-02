@@ -230,3 +230,160 @@ def test_roster_waiting_does_not_duplicate_an_open_waiting_bnaylor_item():
     S.apply_report(s, report("OVERSEER REPORT kube-agents-vamp-f5\nprs: none\nstatus: waiting-human: design q\n"), T0)
     new = S.apply_roster(s, [{"name": "kube-agents-vamp-f5", "status": "waiting", "kind": "interactive", "started_at": T0}], T1)
     assert new == [] and [i["kind"] for i in s["attention"]] == ["waiting-human"]
+
+
+def _at(minute):
+    return f"2026-10-02T{16 + minute // 60}:{minute % 60:02d}:00Z"
+
+
+def _live(*names):
+    return [{"name": n, "status": "idle", "kind": "interactive", "started_at": _at(0)} for n in names]
+
+
+def test_rename_replay_needs_no_human_once_the_new_name_claims_the_pr():
+    # 2026-10-02: ws3 asked a question on #2245, was restarted as ws3-expressive-cocoa, which claimed #2245
+    s = S.empty_state()
+    old, new_name = "kube-agents-ws3", "kube-agents-ws3-cocoa"
+    S.apply_roster(s, _live(old), _at(40))
+    S.apply_report(s, report(f"OVERSEER REPORT {old}\nprs: #2245 round 2 1-threads\nstatus: waiting-human: approve plan for #2245?\n"), _at(47))
+    new = S.apply_roster(s, _live(new_name), _at(52))
+    assert s["sessions"][old]["roster_status"] == "gone"
+    assert [i["kind"] for i in new] == ["orphan"]
+    # the new name claims the PR while the old row still lists it: no conflict against a gone session
+    new = S.apply_report(s, report(f"OVERSEER REPORT {new_name}\nprs: #2245 round 2 1-threads\nstatus: working\n"), _at(56))
+    assert new == []
+    assert s["prs"]["2245"]["owner"] == new_name
+    assert [i["id"] for i in s["attention"]] == [f"{old}:waiting-human:-"]     # orphan gone: #2245 has an owner
+    # inside the grace the old question stays; past it, it is swept
+    S.apply_roster(s, _live(new_name), _at(61))
+    assert [i["kind"] for i in s["attention"]] == ["waiting-human"]
+    S.apply_roster(s, _live(new_name), _at(62))
+    assert s["attention"] == []
+    assert s["sessions"][old]["status"] == "waiting-human" and s["sessions"][old]["prs"] == [2245]   # the record stays
+
+
+def test_conflict_between_live_sessions_clears_once_one_has_been_gone_the_grace():
+    s = S.empty_state()
+    S.apply_roster(s, _live("kube-agents-a", "kube-agents-b"), _at(0))
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-a\nprs: #5 round 1\nstatus: working\n"), _at(1))
+    new = S.apply_report(s, report("OVERSEER REPORT kube-agents-b\nprs: #5 round 1\nstatus: working\n"), _at(2))
+    assert [i["kind"] for i in new] == ["ownership-conflict"]
+    S.apply_roster(s, _live("kube-agents-b"), _at(10))
+    assert [i["kind"] for i in s["attention"]] == ["ownership-conflict"]      # a blip does not settle it
+    S.apply_roster(s, _live("kube-agents-b"), _at(20))
+    assert s["attention"] == [] and s["prs"]["5"]["owner"] == "kube-agents-b"
+
+
+def test_a_claim_made_during_a_blip_raises_the_conflict_when_the_owner_returns():
+    s = S.empty_state()
+    S.apply_roster(s, _live("kube-agents-a", "kube-agents-b"), _at(0))
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-a\nprs: #5 round 1\nstatus: working\n"), _at(1))
+    S.apply_roster(s, _live("kube-agents-b"), _at(5))
+    assert S.apply_report(s, report("OVERSEER REPORT kube-agents-b\nprs: #5 round 1\nstatus: working\n"), _at(6)) == []
+    new = S.apply_roster(s, _live("kube-agents-a", "kube-agents-b"), _at(7))
+    assert [i["id"] for i in new] == ["kube-agents-b:ownership-conflict:5"]
+
+
+def test_a_gone_session_that_reports_is_live_before_the_watcher_sees_it():
+    s = S.empty_state()
+    S.apply_roster(s, _live("kube-agents-a", "kube-agents-b"), _at(0))
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-a\nprs: #5 round 1\nstatus: working\n"), _at(1))
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-b\nprs: #5 round 1\nstatus: working\n"), _at(2))
+    S.clear_attention(s, "kube-agents-b:ownership-conflict:5")
+    S.apply_roster(s, _live("kube-agents-a"), _at(5))
+    S.apply_roster(s, _live("kube-agents-a"), _at(20))
+    assert s["prs"]["5"]["owner"] == "kube-agents-a"             # b settled: #5 handed to a
+    # b is resumed and reports before the next roster pass: its question and its claim stand
+    new = S.apply_report(s, report("OVERSEER REPORT kube-agents-b\nprs: #5 round 1\nstatus: waiting-human: merge #5?\n"), _at(30))
+    assert sorted(i["kind"] for i in new) == ["ownership-conflict", "waiting-human"]
+    assert sorted(i["kind"] for i in s["attention"]) == ["ownership-conflict", "waiting-human"]
+    assert s["prs"]["5"]["owner"] == "kube-agents-b"
+    S.apply_roster(s, _live("kube-agents-a", "kube-agents-b"), _at(31))
+    assert sorted(i["kind"] for i in s["attention"]) == ["ownership-conflict", "waiting-human"]
+
+
+def test_a_gone_session_that_reported_once_and_vanished_again_is_swept_later():
+    s = S.empty_state()
+    S.apply_roster(s, _live("kube-agents-a"), _at(0))
+    S.apply_roster(s, [], _at(5))
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-a\nprs: none\nstatus: waiting-human: q\n"), _at(30))
+    S.apply_roster(s, [], _at(31))                               # report still fresh: alive
+    assert [i["kind"] for i in s["attention"]] == ["waiting-human"]
+    S.apply_roster(s, [], _at(33))                               # report aged: gone afresh
+    assert s["sessions"]["kube-agents-a"]["gone_since"] == _at(33)
+    S.apply_roster(s, [], _at(42))
+    assert [i["kind"] for i in s["attention"]] == ["waiting-human"]
+    S.apply_roster(s, [], _at(43))
+    assert s["attention"] == []
+
+
+def test_gone_owner_hands_its_pr_to_a_live_claimant_after_the_grace():
+    s = S.empty_state()
+    S.apply_roster(s, _live("kube-agents-a", "kube-agents-b"), _at(0))
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-b\nprs: #5 round 1\nstatus: working\n"), _at(1))
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-a\nprs: #5 round 1\nstatus: working\n"), _at(2))
+    S.clear_attention(s, "kube-agents-a:ownership-conflict:5")
+    new = S.apply_roster(s, _live("kube-agents-b"), _at(10))
+    assert s["prs"]["5"]["owner"] == "kube-agents-a" and [i["kind"] for i in new] == ["orphan"]
+    S.apply_roster(s, _live("kube-agents-b"), _at(20))
+    assert s["prs"]["5"]["owner"] == "kube-agents-b" and s["attention"] == []
+
+
+def test_a_pr_is_never_handed_to_another_gone_session():
+    s = S.empty_state()
+    S.apply_roster(s, _live("kube-agents-a", "kube-agents-b"), _at(0))
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-b\nprs: #1 round 1\nstatus: working\n"), _at(1))
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-a\nprs: #1 round 1\nstatus: working\n"), _at(2))
+    S.apply_roster(s, _live("kube-agents-b"), _at(5))
+    S.apply_roster(s, [], _at(10))
+    S.apply_roster(s, [], _at(15))
+    S.apply_roster(s, [], _at(25))
+    assert s["prs"]["1"]["owner"] == "kube-agents-a"
+    assert "kube-agents-a:orphan:1" in [i["id"] for i in s["attention"]]
+
+
+def test_a_session_back_by_report_is_not_retired():
+    s = S.empty_state()
+    S.apply_roster(s, _live("kube-agents-a"), T0)
+    S.apply_roster(s, [], T1)
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-a\nprs: none\nstatus: waiting-human: q\n"), "2026-10-03T00:00:00Z")
+    assert S.retire_due(s, "2026-10-03T00:00:30Z") == []
+    assert [i["kind"] for i in s["attention"]] == ["waiting-human"]
+
+
+def test_gone_session_with_no_successor_keeps_its_orphan_and_loses_its_question():
+    s = S.empty_state()
+    S.apply_roster(s, _live("kube-agents-a"), _at(0))
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-a\nprs: #5 round 1\nstatus: waiting-human: merge #5?\n"), _at(1))
+    S.apply_roster(s, [], _at(10))
+    S.apply_roster(s, [], _at(30))
+    assert [i["id"] for i in s["attention"]] == ["kube-agents-a:orphan:5"]
+    assert s["prs"]["5"]["owner"] == "kube-agents-a"
+    # merged: nothing is orphaned any more
+    s["prs"]["5"]["state"] = "MERGED"
+    S.apply_roster(s, [], _at(31))
+    assert s["attention"] == []
+
+
+def test_a_blip_shorter_than_the_grace_keeps_the_question():
+    s = S.empty_state()
+    S.apply_roster(s, _live("kube-agents-a"), _at(0))
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-a\nprs: none\nstatus: waiting-human: q\n"), _at(1))
+    S.apply_roster(s, [], _at(5))
+    S.apply_roster(s, _live("kube-agents-a"), _at(9))
+    S.apply_roster(s, _live("kube-agents-a"), _at(30))
+    assert [i["kind"] for i in s["attention"]] == ["waiting-human"]
+
+
+def test_sweep_leaves_hand_raised_items_alone():
+    s = S.empty_state()
+    S.apply_roster(s, _live("kube-agents-a"), _at(0))
+    S.apply_report(s, report("OVERSEER REPORT kube-agents-a\nprs: #5 round 1\nstatus: working\n"), _at(1))
+    S.add_attention(s, "-", "ownership-conflict", None, "#1970: two sessions planned it", _at(1))["manual"] = True
+    S.add_attention(s, "kube-agents-a", "ownership-conflict", 5, "judgment call", _at(1))["manual"] = True
+    S.add_attention(s, "kube-agents-a", "waiting-human", None, "asked in chat", _at(1))["manual"] = True
+    S.apply_roster(s, [], _at(10))
+    S.apply_roster(s, [], _at(40))
+    ids = sorted(i["id"] for i in s["attention"])
+    assert ids == ["-:ownership-conflict:-", "kube-agents-a:orphan:5", "kube-agents-a:ownership-conflict:5",
+                   "kube-agents-a:waiting-human:-"]

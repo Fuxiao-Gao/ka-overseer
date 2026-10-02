@@ -192,6 +192,12 @@ def test_attention_command_opens_a_manual_item_once_and_notifies(tmp_path, monke
     assert ovsr.FIRED == ["kube-agents-vamp-d4: 15 gating rounds; re-evaluate for drift"]
     assert ovsr.main(["--dir", d, "attention", "-", "orphan", "1885", "no driver"]) == 0
     assert S.load_state(Path(d) / "state.json")["attention"][1]["session"] == "-"
+    # hand-raised items are marked manual and survive the sweep a tick runs
+    (Path(d) / "roster.json").write_text(json.dumps({"ts": S.now_iso(), "sessions": []}))
+    assert ovsr.main(["--dir", d, "tick", "--no-gh", "--session", "overseer"]) == 0
+    items = S.load_state(Path(d) / "state.json")["attention"]
+    assert [i["id"] for i in items] == ["kube-agents-vamp-d4:drift-check:1884", "-:orphan:1885"]
+    assert all(i["manual"] for i in items)
 
 
 def test_runtime_dir_is_created_on_first_use(tmp_path, monkeypatch, capsys):

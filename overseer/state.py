@@ -9,6 +9,7 @@ from report import parse_report
 
 SESSION_STATUSES = {"working", "waiting-human", "waiting-review", "idle"}
 RECENT_REPORT_MIN = 2   # a report this fresh proves the session is alive even if the roster file lacks it
+GONE_SWEEP_MIN = 10     # gone this long: a restart or rename, not a blip; its question and PR claims are moot
 ROSTER_STATUSES = {"busy", "idle", "waiting", "shell", "gone"}
 OPEN_PR_STATES = {None, "OPEN"}
 
@@ -127,17 +128,11 @@ def apply_report(state, report, now):
             claimants = [n for n, r in state["sessions"].items() if n != name and old in r["prs"]]
             state["prs"][str(old)]["owner"] = claimants[0] if claimants else None
     row["prs"] = reported
-    # a PR with a single remaining claimant has no conflict left
-    for item in list(state["attention"]):
-        if item["kind"] == "ownership-conflict" and item["pr"] is not None:
-            claimants = [n for n, r in state["sessions"].items() if item["pr"] in r["prs"]]
-            if len(claimants) <= 1:
-                state["attention"].remove(item)
     for number, belief in report["prs"].items():
         p = pr(state, number)
         if p["owner"] not in (None, name):
             other = p["owner"]
-            if other in state["sessions"] and number in state["sessions"][other]["prs"]:
+            if _is_live(state, other) and number in state["sessions"][other]["prs"]:   # a gone owner cannot drive it
                 item = add_attention(state, name, "ownership-conflict", number,
                                      f"#{number} reported by both {other} and {name}; {name} now owner", now)
                 if item:
@@ -163,6 +158,7 @@ def apply_report(state, report, now):
             new.append(item)
     else:
         _clear_kind(state, name, "waiting-human")
+    sweep(state, now)
     state["updated"] = now
     return new
 
@@ -172,13 +168,60 @@ def _owned_open_prs(state, name):
             if p["owner"] == name and p.get("state") in OPEN_PR_STATES]
 
 
+def _gone(row):
+    """Gone from the roster and silent since; a report after leaving proves it is back before the watcher sees it."""
+    return row["roster_status"] == "gone" and not (
+        row["last_report"] and row["gone_since"] and parse_iso(row["last_report"]) > parse_iso(row["gone_since"]))
+
+
+def _is_live(state, name):
+    return name in state["sessions"] and not _gone(state["sessions"][name])
+
+
+def _settled(state, now):
+    return {n for n, r in state["sessions"].items()
+            if _gone(r) and r["gone_since"]
+            and parse_iso(now) - parse_iso(r["gone_since"]) >= timedelta(minutes=GONE_SWEEP_MIN)}
+
+
+def sweep(state, now):
+    """Drop attention items the facts have overtaken; runs after every report and roster pass.
+
+    Hand-raised items (`ovsr.py attention`, marked `manual`) are never touched here. A session gone
+    GONE_SWEEP_MIN loses its waiting-human item and its PR claims; an orphan item stays
+    while its PRs have no live claimant, so a PR that really lost its owner still surfaces.
+    """
+    settled = _settled(state, now)
+
+    def claimants(number):
+        return [n for n, r in state["sessions"].items() if number in r["prs"] and n not in settled]
+
+    for name in settled:
+        state["attention"] = [i for i in state["attention"]
+                              if i.get("manual") or not (i["session"] == name and i["kind"] == "waiting-human")]
+        for number in _owned_open_prs(state, name):
+            heirs = [n for n in claimants(number) if _is_live(state, n)]   # never to another absent session
+            if heirs:
+                state["prs"][str(number)]["owner"] = heirs[0]
+    for item in list(state["attention"]):
+        if item.get("manual"):
+            continue
+        if item["kind"] == "ownership-conflict" and item["pr"] is not None and len(claimants(item["pr"])) <= 1:
+            state["attention"].remove(item)
+        elif item["kind"] == "orphan" and not _owned_open_prs(state, item["session"]):
+            state["attention"].remove(item)
+
+
 def apply_roster(state, roster, now):
     new = []
     seen = set()
+    returned = []
     for a in roster:
         name = a["name"]
         seen.add(name)
         row = session(state, name)
+        if row["roster_status"] == "gone":
+            returned.append(name)
         row["kind"] = a.get("kind")
         row["started_at"] = a.get("started_at") or row["started_at"]
         if row["roster_status"] != a["status"]:
@@ -196,8 +239,16 @@ def apply_roster(state, roster, now):
                     new.append(item)
         else:
             _clear_kind(state, name, "waiting")
+    for name in returned:          # a claim made while it was away raised no conflict against it; check now
+        for number in state["sessions"][name]["prs"]:
+            owner = state["prs"].get(str(number), {}).get("owner")
+            if owner not in (None, name) and _is_live(state, owner) and number in state["sessions"][owner]["prs"]:
+                item = add_attention(state, owner, "ownership-conflict", number,
+                                     f"#{number} reported by both {name} and {owner}; {owner} now owner", now)
+                if item:
+                    new.append(item)
     for name, row in state["sessions"].items():
-        if name in seen or row["roster_status"] == "gone":
+        if name in seen or _gone(row):     # a gone row that reported since is marked afresh once the report ages
             continue
         recent = row["last_report"] and parse_iso(now) - parse_iso(row["last_report"]) < timedelta(minutes=RECENT_REPORT_MIN)
         if recent:                                   # it just spoke; the watcher has not caught up yet
@@ -211,6 +262,7 @@ def apply_roster(state, roster, now):
                                  f"session gone, owns {', '.join('#%d' % n for n in owned)}; reassign?", now)
             if item:
                 new.append(item)
+    sweep(state, now)
     state["updated"] = now
     return new
 
@@ -232,7 +284,7 @@ def retire_due(state, now, hours=24, ephemeral_hours=1):
     """Gone sessions retire after `hours`; ones that never reported and own nothing after `ephemeral_hours`."""
     due = []
     for name, row in state["sessions"].items():
-        if row["roster_status"] != "gone" or not row["gone_since"] or _owned_open_prs(state, name):
+        if not _gone(row) or not row["gone_since"] or _owned_open_prs(state, name):
             continue
         grace = ephemeral_hours if row["last_report"] is None else hours
         if parse_iso(row["gone_since"]) <= parse_iso(now) - timedelta(hours=grace):
