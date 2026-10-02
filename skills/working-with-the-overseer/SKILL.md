@@ -87,6 +87,7 @@ it when you cannot.
 - **While parked on a question, nothing the Overseer sends reaches you** until the human answers. Never wait on the Overseer for anything while parked.
 - **A `/review` you believe you posted but never verified landed.** Read the comment back.
 - **A `/hold` without a clearance criterion** in the same comment. Nothing can lift it.
+- **The bare `do-not-merge` label is a thread mirror, not a hold.** `hold-unresolved-threads.yml` adds it within seconds of an unresolved thread (fast path on `labeled`) and removes it only on its five-minute schedule, and only if the bot was the last to apply it. `/hold cancel` does not touch it; resolving the threads is its only exit. Up to ten minutes stale after the last resolve is normal; do not touch the label yourself.
 - **A push during a live gating round** resets the round. Wait for the bot to finish.
 - **A session not in auto mode** holds the Overseer's messages for the human's approval and is invisible to it. Say `mode: other` in your report so it knows.
 - **Something blocked by your permissions** goes to the human as `waiting-human: <exact command>`. Never ask a peer to run it.
