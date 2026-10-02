@@ -91,6 +91,7 @@ it when you cannot.
 - **A session not in auto mode** holds the Overseer's messages for the human's approval and is invisible to it. Say `mode: other` in your report so it knows.
 - **Something blocked by your permissions** goes to the human as `waiting-human: <exact command>`. Never ask a peer to run it.
 - **Open review threads are the top priority.** They are what reaches the human gate.
+- **Reviewers: a finding whose fix lands in code an earlier round wrote, or needs a new regex or rule, is a scope question for the human, not something to endorse.** Endorsing it feeds the spiral the cap exists for (#2267, rounds 4-8). Put it on the PR as a question and report it.
 - **Do not ask the human for `/request-review`.** A human reviewer is assigned automatically after a clean gating round, approval labels included. `/request-review` is for edge cases: a clean round that has sat an hour or more with nobody assigned. Report that; do not ask.
 - **Zero unresolved threads does not mean clear (rule 16).** The bot's PR-description finding opens one thread whose first comment starts `<!-- kube-agents-bot:description -->`; resolving it answers nothing, only editing the PR body does. Until then every later review repeats it in its summary body under "The pull request description is still unanswered." and the AI Review check stays neutral. Read the latest bot review body:
   `gh pr view <N> --repo <repo> --json reviews --jq '[.reviews[] | select(.author.login == "kube-agents-bot")] | last | .body'`
