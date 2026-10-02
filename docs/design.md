@@ -169,7 +169,9 @@ Ladder for a non-reporting session: PING with an idle subscription (1) → next 
 again (2) → attention item and one notification (3). The idle notice carries a summary of the
 session's last turn, so a session that forgets to report still tells the Overseer what it did. The ladder resets on any
 report. An attention item notifies once and persists until the session reports a different
-status or the human clears it. No repeat notifications for the same item.
+status, the facts overtake it, or the human clears it. No repeat notifications for the same item.
+The facts that clear an item without a report (a gone session's leftovers after a restart or
+rename) are listed in `escalation.md`.
 
 Notification: `osascript -e 'display notification "<session>: <what>" with title "Overseer"'`.
 

@@ -200,6 +200,8 @@ def cmd_attention(p, a):
     state = _load(p)
     pr = int(a.pr) if a.pr not in (None, "-", "") else None
     item = S.add_attention(state, a.session, a.kind, pr, a.what, S.now_iso())
+    if item:
+        item["manual"] = True          # judgment, not a fact: S.sweep never drops it
     _finish(p, state)
     return 0 if item else 1
 
