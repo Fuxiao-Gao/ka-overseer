@@ -26,8 +26,8 @@ def test_classify_real_pr():
     assert row["title"].startswith("fix(operator)")
     assert row["head"] == FIX["headRefOid"][:8]
     assert row["branch"] == "fix/tasks-budget-reads-bridge-concurrency"
-    assert row["rounds"] == sum(1 for r in FIX["reviews"] if r["author"]["login"] == "kube-agents-bot")
-    assert row["advisory_rounds"] == sum(1 for r in FIX["reviews"] if r["author"]["login"] == "kyber775")
+    assert row["rounds"] == len({r["commit"]["oid"] for r in FIX["reviews"] if r["author"]["login"] == "kube-agents-bot"})
+    assert row["advisory_rounds"] == len({r["commit"]["oid"] for r in FIX["reviews"] if r["author"]["login"] == "kyber775"})
     labels = {l["name"] for l in FIX["labels"]}
     assert row["approved"] is ("approved" in labels) and row["lgtm"] is ("lgtm" in labels) and row["hold"] is ("do-not-merge/hold" in labels)
     assert row["reviewers"] == [r.get("login") or r.get("name") for r in FIX["reviewRequests"]]
@@ -136,3 +136,11 @@ def test_optional_next_lane_does_not_make_a_pr_red():
     rollup = [{"__typename": "StatusContext", "context": "pull-kube-agents-smoke-test-next", "state": "FAILURE"},
               {"__typename": "StatusContext", "context": "pull-kube-agents-smoke-test", "state": "SUCCESS"}]
     assert G.checks_state(rollup) == "green"
+
+
+def test_rounds_count_distinct_commits_not_duplicate_submissions():
+    pr = dict(FIX)
+    bot = [r for r in FIX["reviews"] if r["author"]["login"] == "kube-agents-bot"]
+    pr["reviews"] = FIX["reviews"] + [dict(bot[0])]          # the bot submitted twice on the same commit
+    assert G.classify_pr(pr, 0)["rounds"] == G.classify_pr(FIX, 0)["rounds"]
+    assert G.classify_pr(FIX, 0)["rounds"] == len({r["commit"]["oid"] for r in bot})

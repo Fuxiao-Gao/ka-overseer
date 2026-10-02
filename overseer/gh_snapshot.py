@@ -73,6 +73,22 @@ def last_activity(pr):
     return max(events) if events else pr.get("updatedAt")
 
 
+def _rounds(reviews, login):
+    """One round per distinct commit the bot reviewed; a duplicate submission on the same commit is not a new round."""
+    commits = set()
+    n = 0
+    for r in reviews:
+        if ((r.get("author") or {}).get("login")) != login:
+            continue
+        oid = (r.get("commit") or {}).get("oid")
+        if oid is None:
+            n += 1
+        elif oid not in commits:
+            commits.add(oid)
+            n += 1
+    return n
+
+
 def classify_pr(pr, unresolved):
     labels = {l["name"] for l in pr.get("labels", [])}
     reviews = pr.get("reviews", [])
@@ -86,8 +102,8 @@ def classify_pr(pr, unresolved):
         "mergeable": pr.get("mergeable"),
         "checks": checks_state(pr.get("statusCheckRollup") or []),
         "unresolved_threads": unresolved,
-        "rounds": sum(1 for r in reviews if r["author"]["login"] == GATING_BOT),
-        "advisory_rounds": sum(1 for r in reviews if r["author"]["login"] == ADVISORY_BOT),
+        "rounds": _rounds(reviews, GATING_BOT),
+        "advisory_rounds": _rounds(reviews, ADVISORY_BOT),
         "hold": "do-not-merge/hold" in labels,
         "lgtm": "lgtm" in labels,
         "approved": "approved" in labels,
