@@ -115,6 +115,28 @@ def add_attention(state, session_name, kind, pr_number, what, now):
     return item
 
 
+def snooze(state, session_name, kind, pr):
+    """Clear an item and keep it quiet while the PR's head stays where it is now.
+    A head change (any push) drops the snooze and lets the signal re-raise."""
+    item_id = attention_id(session_name, kind, pr)
+    clear_attention(state, item_id)
+    head = (state["prs"].get(str(pr)) or {}).get("head")
+    state.setdefault("snoozed", {})[item_id] = head
+    return item_id
+
+
+def snoozed(state, session_name, kind, pr):
+    """True while the snooze's pinned head is still the PR's head; drops a stale snooze."""
+    item_id = attention_id(session_name, kind, pr)
+    sn = state.get("snoozed") or {}
+    if item_id not in sn:
+        return False
+    if sn[item_id] == (state["prs"].get(str(pr)) or {}).get("head"):
+        return True
+    del sn[item_id]
+    return False
+
+
 def clear_attention(state, item_id):
     before = len(state["attention"])
     state["attention"] = [i for i in state["attention"] if i["id"] != item_id]

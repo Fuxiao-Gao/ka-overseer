@@ -70,3 +70,4 @@ notifies again.
   a session sitting `waiting-human` on it is correct, not stalled. Keep the item on the band with the
   session's recommendation attached; an Overseer "it's your call" does not release it. Verify such
   clauses against the upstream default branch, not a local checkout.
+- `ovsr.py clear <id> --snooze` clears an explained item (a stale red on an old merge ref, say) and keeps it quiet while the PR head stays put; the next push drops the snooze and the signal re-raises on its own.

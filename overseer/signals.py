@@ -30,6 +30,8 @@ def _escalate(state, now, name, row, pr, kind, reason, actions):
     """Shared ladder: ping, ping, attention."""
     if row["roster_status"] in SKIP_PING:
         return
+    if pr is not None and S.snoozed(state, name, kind, pr):     # explained; quiet until the head moves
+        return
     ladder = row.get("ladder") or 0
     if ladder >= 2:
         if not _open(state, name, kind, pr):

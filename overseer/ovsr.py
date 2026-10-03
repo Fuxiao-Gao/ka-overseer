@@ -191,7 +191,15 @@ def cmd_retire(p, a):
 
 def cmd_clear(p, a):
     state = _load(p)
-    ok = S.clear_attention(state, a.id)
+    if getattr(a, "snooze", False):
+        parts = a.id.rsplit(":", 2)          # <session>:<kind>:<pr>
+        if len(parts) == 3 and parts[2].isdigit():
+            S.snooze(state, parts[0], parts[1], int(parts[2]))
+            ok = True
+        else:
+            ok = False
+    else:
+        ok = S.clear_attention(state, a.id)
     _finish(p, state)
     return 0 if ok else 1
 
@@ -258,7 +266,9 @@ def main(argv=None):
     s = sub.add_parser("sent"); s.add_argument("type"); s.add_argument("session"); s.set_defaults(fn=cmd_sent)
     s = sub.add_parser("assign"); s.add_argument("pr", type=int); s.add_argument("session"); s.add_argument("--hazards"); s.set_defaults(fn=cmd_assign)
     s = sub.add_parser("retire"); s.add_argument("session"); s.set_defaults(fn=cmd_retire)
-    s = sub.add_parser("clear"); s.add_argument("id"); s.set_defaults(fn=cmd_clear)
+    s = sub.add_parser("clear"); s.add_argument("id")
+    s.add_argument("--snooze", action="store_true", help="keep the item quiet until the PR's head changes")
+    s.set_defaults(fn=cmd_clear)
     s = sub.add_parser("rule"); s.add_argument("text"); s.set_defaults(fn=cmd_rule)
     s = sub.add_parser("attention"); s.add_argument("session"); s.add_argument("kind"); s.add_argument("pr"); s.add_argument("what"); s.set_defaults(fn=cmd_attention)
     s = sub.add_parser("decision"); s.add_argument("session"); s.add_argument("pr"); s.add_argument("quote"); s.set_defaults(fn=cmd_decision)

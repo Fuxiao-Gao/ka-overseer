@@ -196,3 +196,15 @@ def test_review_minder_is_not_pinged_for_an_authors_threads():
     s["sessions"]["kube-agents-vamp-1"]["last_report"] = T0
     s["sessions"]["kube-agents-vamp-1"]["role"] = "review-minder"
     assert [a for a in types(X.compute_actions(s, T_PLUS_3H), "PING") if a["kind"] == "threads"] == []
+
+
+def test_snoozed_red_stays_quiet_until_the_head_changes():
+    s = base()
+    s["prs"]["5"].update(checks="red", head="aaaaaaaa", last_activity=T0)
+    s["sessions"]["kube-agents-vamp-1"].update(last_report=T0, ladder=2)
+    S.snooze(s, "kube-agents-vamp-1", "red", 5)          # pins the current head
+    assert [a for a in X.compute_actions(s, T_PLUS_3H) if a["kind"] == "red"] == []
+    s["prs"]["5"]["head"] = "bbbbbbbb"
+    a = [a for a in X.compute_actions(s, T_PLUS_3H) if a["kind"] == "red"]
+    assert a and a[0]["type"] == "ATTENTION"
+    assert S.attention_id("kube-agents-vamp-1", "red", 5) not in s.get("snoozed", {})
