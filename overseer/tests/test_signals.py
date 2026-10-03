@@ -188,3 +188,11 @@ def test_held_pr_threads_are_not_a_stall():
     s["prs"]["5"].update(unresolved_threads=3, last_activity=T0, hold=True)
     s["sessions"]["kube-agents-vamp-1"]["last_report"] = T0
     assert types(X.compute_actions(s, T_PLUS_3H), "PING") == []     # a /hold parks the PR on purpose; its threads wait with it
+
+
+def test_review_minder_is_not_pinged_for_an_authors_threads():
+    s = base()
+    s["prs"]["5"].update(unresolved_threads=2, last_activity=T0)
+    s["sessions"]["kube-agents-vamp-1"]["last_report"] = T0
+    s["sessions"]["kube-agents-vamp-1"]["role"] = "review-minder"
+    assert [a for a in types(X.compute_actions(s, T_PLUS_3H), "PING") if a["kind"] == "threads"] == []
