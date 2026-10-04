@@ -208,3 +208,12 @@ def test_snoozed_red_stays_quiet_until_the_head_changes():
     a = [a for a in X.compute_actions(s, T_PLUS_3H) if a["kind"] == "red"]
     assert a and a[0]["type"] == "ATTENTION"
     assert S.attention_id("kube-agents-vamp-1", "red", 5) not in s.get("snoozed", {})
+
+
+def test_snoozed_no_reviewer_advice_stays_quiet():
+    s = base()
+    s["prs"]["5"].update(reviewers=[], last_activity=T0, head="aaaaaaaa")
+    s["sessions"]["kube-agents-vamp-1"]["status"] = "waiting-review"
+    assert types(X.compute_actions(s, T_PLUS_2D), "ADVICE")
+    S.snooze(s, "kube-agents-vamp-1", "no-reviewer", 5)
+    assert types(X.compute_actions(s, T_PLUS_2D), "ADVICE") == []

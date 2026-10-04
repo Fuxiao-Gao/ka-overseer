@@ -95,9 +95,9 @@ def compute_actions(state, now, default_cadence_min=30):
                 pinged_this_pass = True
             if row["status"] == "waiting-review" and not p.get("reviewers") and moved is not None \
                     and moved >= timedelta(hours=NO_REVIEWER_HOURS):
-                if not _open(state, name, "no-reviewer", num):
+                if not _open(state, name, "no-reviewer", num) and not S.snoozed(state, name, "no-reviewer", num):
                     actions.append(_action("ADVICE", name, num, "no-reviewer",
-                                           f"#{num} parked waiting-review with no reviewer for a day; /request-review or ask the human"))
+                                           f"#{num} parked waiting-review with no reviewer for a day; a reviewer auto-assigns only after a clean bot round, so check the latest round is clean and otherwise ask the human"))
         if not owned and row["roster_status"] == "idle" and row["status"] == "working" \
                 and silent is not None and silent >= SILENT_FACTOR * cadence:
             _escalate(state, now, name, row, None, "stalled", "roster idle but last report said working", actions)
