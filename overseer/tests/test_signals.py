@@ -217,3 +217,10 @@ def test_snoozed_no_reviewer_advice_stays_quiet():
     assert types(X.compute_actions(s, T_PLUS_2D), "ADVICE")
     S.snooze(s, "kube-agents-vamp-1", "no-reviewer", 5)
     assert types(X.compute_actions(s, T_PLUS_2D), "ADVICE") == []
+
+
+def test_no_reviewer_advice_skips_a_pr_that_already_has_lgtm():
+    s = base()
+    s["prs"]["5"].update(reviewers=[], last_activity=T0, lgtm=True)
+    s["sessions"]["kube-agents-vamp-1"]["status"] = "waiting-review"
+    assert types(X.compute_actions(s, T_PLUS_2D), "ADVICE") == []

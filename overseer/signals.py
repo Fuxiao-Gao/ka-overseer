@@ -93,7 +93,7 @@ def compute_actions(state, now, default_cadence_min=30):
                 _escalate(state, now, name, row, num, "stalled",
                           f"#{num} moved since your last report and you have been silent {int(silent.total_seconds() // 60)}m", actions)
                 pinged_this_pass = True
-            if row["status"] == "waiting-review" and not p.get("reviewers") and moved is not None \
+            if row["status"] == "waiting-review" and not p.get("reviewers") and not p.get("lgtm") and moved is not None \
                     and moved >= timedelta(hours=NO_REVIEWER_HOURS):
                 if not _open(state, name, "no-reviewer", num) and not S.snoozed(state, name, "no-reviewer", num):
                     actions.append(_action("ADVICE", name, num, "no-reviewer",
