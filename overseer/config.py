@@ -8,6 +8,7 @@ DEFAULTS = {
     "human_short": "human",
     "session_pattern": "^(kube-agents-|overseer)",
     "cwd_prefixes": [],
+    "worktree_roots": [],          # folders whose git clones' worktrees the dashboard lists; empty means cwd_prefixes
     "gating_bot": "kube-agents-bot",
     "advisory_bot": "kyber775",
     "round_cap": 6,

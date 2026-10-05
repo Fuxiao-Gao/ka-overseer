@@ -10,6 +10,7 @@ import gh_snapshot as G
 import render as V
 import signals as X
 import state as S
+import worktrees as W
 from report import parse_report
 from config import CFG
 from roster import notify as _osascript_notify
@@ -81,6 +82,15 @@ def _render(p, state):
     S.write_atomic(p.html, V.render(state, roster, S.now_iso()))
 
 
+def refresh_worktrees(state, now):
+    """Never fails the tick: a broken scan is shown on the dashboard instead."""
+    try:
+        W.refresh(state, now, G.branch_prs)
+    except Exception as e:
+        prev = state.get("worktrees") or {"rows": []}
+        state["worktrees"] = {**prev, "errors": [f"scan failed: {e}"]}
+
+
 def _notify_new(state):
     for item in state["attention"]:
         if item.get("notified"):
@@ -138,6 +148,7 @@ def cmd_tick(p, a):
     if not a.no_gh:
         res = G.snapshot(state, G.scope_numbers(state), now=now)
         gh_errors = {str(k): v for k, v in res["errors"].items()}
+        refresh_worktrees(state, now)
     new += S.raise_orphans(state, now, fresh=not a.no_gh)   # after the snapshot: a dropped PR that merged raises nothing
     actions = X.compute_actions(state, now)
     new += X.apply_actions(state, actions, now)
@@ -161,7 +172,10 @@ def cmd_tick(p, a):
         summary.append("retired: " + ", ".join(retired))
     if drift_started:
         summary.append("drift review started: " + ", ".join(f"#{n}" for n in drift_started))
-    summary.append(f"tick {ov['tick']}, {len(state['attention'])} open attention, next wake {ov.get('next_wake') or 'unset'}")
+    wt = (state.get("worktrees") or {}).get("rows") or []
+    cleanup = sum(1 for r in wt if r["status"] in ("cleanup", "missing"))
+    wt_part = f", {cleanup} worktree{'s' if cleanup != 1 else ''} to clean up" if cleanup else ""
+    summary.append(f"tick {ov['tick']}, {len(state['attention'])} open attention{wt_part}, next wake {ov.get('next_wake') or 'unset'}")
     print(json.dumps({"actions": actions, "new_attention": new, "gh_errors": gh_errors, "summary": summary[:5]}, indent=1))
     return 0
 

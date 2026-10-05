@@ -43,7 +43,8 @@ All under `overseer/` in this repo unless noted.
 | `escalation.md` | stall signals, thresholds, ladder | Overseer session, with the human |
 | `state.json` | single source of truth | Overseer only |
 | `reports.log` | append-only, one JSON line per received report | Overseer only |
-| `gh_snapshot.py` | the only place `gh` is called; writes the `prs` part of state | code |
+| `gh_snapshot.py` | the only place `gh` is called; writes the `prs` part of state and looks up PRs for worktree branches | code |
+| `worktrees.py` | lists the extra git worktrees under the watched folders, with owner, PR and cleanup status; read-only | code |
 | `watch.sh` | every 60 s: roster to `roster.json`, render, notify on a new `waiting` session | code |
 | `roster.json` | last `claude agents --json`, filtered to kube-agents sessions | `watch.sh` |
 | `render.py` | `state.json` to `dashboard.html` | code |
@@ -208,7 +209,41 @@ with full text on hover. Colour and status encoding follow the dataviz skill.
 1. **Attention band** at the top. One row per item, oldest first: session, PR, age, what. Empty state is one quiet green line. This is the only red on the page. `gone-question` notes (a gone session's unanswered question) sit in a muted table below it and do not count against the green line.
 2. **Sessions table.** Name, role, theme, driver and cadence, roster status, reported status, PRs, last report age, last activity age, rules acknowledged, note. Rows tint by status. Age past 2x cadence highlights. Gone sessions grey.
 3. **PRs table.** Number and title, owner, mergeability, checks, unresolved threads, gating rounds (highlight at 6), advisory rounds (muted), hold, lgtm, approved, reviewers, last activity age, drift. Sorted nearest-the-gate first: zero threads and green checks at the top.
-4. **Footer.** Rendered when, rules version in force, next Overseer wake.
+4. **Worktrees table.** Every extra worktree under the watched folders: path, owner, branch, PR and its state, unsaved work, last change, status, and the reason. Hovering a reason shows the command that cleans it up. Sorted with the ones to clean up first. See "Worktrees" below.
+5. **Footer.** Rendered when, rules version in force, next Overseer wake.
+
+## Worktrees (`worktrees.py`)
+
+Sessions make a worktree per PR and often leave it behind once the PR merges. On every tick
+that reads GitHub, the Overseer lists them so the human can see what is safe to remove. It
+never removes one itself.
+
+- **Where it looks.** `worktree_roots` in `config.json`, or `cwd_prefixes` when that is empty.
+  Each root and each folder directly inside it that holds a main clone (`.git` is a directory)
+  is asked for `git worktree list`. That also finds worktrees created elsewhere, such as under
+  `/tmp`. A folder directly inside a root whose `.git` file points at a record git already pruned
+  is listed too, because `git worktree list` no longer shows it.
+- **PR.** One `gh pr list --author @me --state all` per repo, then `--head <branch>` for branches
+  it did not cover. The repo is the clone's `upstream` remote, else `origin`. A PR only matches
+  when its head is on the clone's `origin` owner. The open PR wins over older ones on the same branch.
+- **Owner.** The PR's owner in state, else a live session listing that PR, else the session whose
+  folder holds the worktree (deepest folder, live first, the Overseer last).
+- **Unsaved work.** Anything that exists only in this folder, because `git worktree remove` deletes
+  it without a warning:
+  - uncommitted changes, untracked files, and files marked assume-unchanged or skip-worktree;
+  - gitignored files outside tool caches (`__pycache__`, `node_modules`, `.terraform`, `.venv` and
+    similar), such as `install.env`, `terraform.tfvars` or local terraform state;
+  - commits no remote branch has. The PR's head commit counts as pushed, because GitHub deletes a
+    merged PR's branch. A detached worktree also counts commits only its own history log still reaches.
+- **Last change.** The latest of the last commit, the staging area, and the edited files. The scan
+  runs git with `--no-optional-locks`, so it does not count as a change itself.
+- **Status.**
+  - `in use`: the PR is open, a live session is working inside the folder, or there is no finished PR and something changed in the last 3 days. Commits after a PR merged or closed count as no finished PR.
+  - `cleanup`: the PR merged or closed, or there is no PR and nothing changed for 3 days; and nothing is unsaved. `git worktree remove` loses nothing: the branch and its commits stay.
+  - `check`: same as `cleanup` but something is unsaved or the worktree is locked, or the folder lost its git record. The human decides.
+  - `missing`: git lists the worktree but the folder is gone; `git worktree prune` drops it.
+  - `unknown`: git failed, the clone's remote is not on GitHub, or GitHub did not answer and no earlier tick knew the PR.
+- The tick's summary line counts `cleanup` plus `missing` as worktrees to clean up.
 
 ## GitHub snapshot (`gh_snapshot.py`)
 
@@ -235,7 +270,7 @@ dashboard once.
 Each tick:
 
 1. Roster diff from `roster.json`. INTRO newcomers. Mark leavers `gone`; orphan check on their PRs. For each `waiting` session, attach the PR and last-report context to the attention item the watcher opened.
-2. GitHub snapshot and drift.
+2. GitHub snapshot and drift. Worktree scan (see "Worktrees").
 3. Stall signals and ladders. Send PING, STOP, ADVICE. Add attention items; notify each new one once.
 4. Retire gone sessions that own nothing and have been gone 24 h.
 5. Write `state.json`, run `render.py`.

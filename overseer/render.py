@@ -2,7 +2,9 @@
 import argparse
 import html
 import json
+import os
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -173,6 +175,56 @@ def _prs(state):
             + "".join(out) + "</table>")
 
 
+WT_ICON = {"cleanup": ("⌫ clean up", "s-warn"), "missing": ("✕ missing", "s-warn"), "check": ("⚑ check", "s-bad"),
+           "unknown": ("– unknown", "muted"), "in use": ("● in use", "s-good")}
+HOME = os.path.expanduser("~")
+
+
+def _short(path):
+    return "~" + path[len(HOME):] if path and path.startswith(HOME + "/") else (path or "—")
+
+
+def _wt_command(r):
+    q = shlex.quote
+    if r["status"] == "missing":
+        return f"git -C {q(r['main'])} worktree prune"
+    if r["status"] == "cleanup":
+        return f"git -C {q(r['main'])} worktree remove {q(r['path'])}"
+    return ""
+
+
+def _worktrees(state):
+    wt = state.get("worktrees")
+    if not wt:
+        return '<p class="muted">Not scanned yet. The next Overseer tick that reads GitHub fills this in.</p>'
+    rows = wt.get("rows") or []
+    counts = {s: sum(1 for r in rows if r["status"] == s) for s in WT_ICON}
+    head = " · ".join(f"{n} {WT_ICON[s][0].split(' ', 1)[1]}" for s, n in counts.items() if n) or "no extra worktrees"
+    errs = "".join(f'<p class="s-bad">{e(x)}</p>' for x in wt.get("errors") or [])
+    out = []
+    for r in rows:
+        icon, cls = WT_ICON.get(r["status"], (e(r["status"]), "muted"))
+        pr = r.get("pr")
+        pr_html = (f'<a href="{e(pr["url"])}">#{e(pr["number"])}</a> {e(pr["state"].lower())}' if pr and pr.get("url")
+                   else (f'#{e(pr["number"])} {e(pr["state"].lower())}' if pr else "—"))
+        owner = r.get("owner")
+        owner_html = e(owner) if owner and S.is_live(state, owner) else (f'<span class="muted">{e(owner)} (gone)</span>' if owner else "—")
+        branch = (e(r["branch"]) if r["branch"] else '<span class="muted">not tracked by git</span>' if r.get("orphan")
+                  else f'<span class="muted">detached {e((r.get("head") or "")[:8])}</span>')
+        unsaved = ", ".join(x for x in (f"{r['dirty']} changed" if r.get("dirty") else "",
+                                        f"{r['unpushed']} unpushed" if r.get("unpushed") else "",
+                                        f"{r['ignored']} ignored" if r.get("ignored") else "") if x) or "—"
+        cmd = _wt_command(r)
+        out.append(
+            f'<tr><td title="{e(r["path"])}">{e(_short(r["path"]))}</td><td>{owner_html}</td><td>{branch}</td>'
+            f"<td>{pr_html}</td><td>{e(unsaved)}</td><td>{ts(r.get('last_activity'))}</td>"
+            f'<td class="{cls}">{icon}</td><td title="{e(cmd or r.get("why"))}">{e(r.get("why") or "")}</td></tr>')
+    table = ("<table><tr><th>worktree</th><th>owner</th><th>branch</th><th>PR</th><th>unsaved</th><th>last change</th>"
+             "<th>status</th><th>why</th></tr>" + "".join(out) + "</table>") if out else ""
+    return (f'<p class="muted">{e(head)} · scanned {ts(wt.get("scanned"))} ago · hover a reason for the command; '
+            f"the Overseer never removes a worktree itself</p>{errs}{table}")
+
+
 def render(state, roster, now):
     ov = state.get("overseer") or {}
     return f"""<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="60">
@@ -181,6 +233,7 @@ def render(state, roster, now):
 {_attention(state)}
 <h2>Sessions</h2>{_sessions(state, roster)}
 <h2>PRs</h2>{_prs(state)}
+<h2>Worktrees</h2>{_worktrees(state)}
 <footer>Rendered {ts(now)} ago · Rules v{e(state.get('rules_version'))} · Overseer {e(ov.get('session') or '—')} tick {e(ov.get('tick'))} · next wake {ts(ov.get('next_wake')) if ov.get('next_wake') else '—'}</footer>
 <script>{JS}</script></body></html>"""
 
