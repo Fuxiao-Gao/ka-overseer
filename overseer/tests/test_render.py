@@ -97,3 +97,11 @@ def test_pr_numbers_are_links_everywhere():
     s["sessions"]["kube-agents-vamp-1"]["note"] = "<b>#7</b>"
     html = V.render(s, None, T0)
     assert "&lt;b&gt;" in html and f'<a href="{base}7">#7</a>' in html
+
+
+def test_ready_for_human_marks_only_the_lgtm_gap():
+    import render as V
+    base = {"checks": "green", "unresolved_threads": 0, "mergeable": "MERGEABLE", "hold": False, "draft": False, "lgtm": False}
+    assert V.ready_for_human(base)
+    for k, v in [("lgtm", True), ("checks", "red"), ("unresolved_threads", 1), ("mergeable", "CONFLICTING"), ("hold", True), ("draft", True)]:
+        assert not V.ready_for_human({**base, k: v}), k

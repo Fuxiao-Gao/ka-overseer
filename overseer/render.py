@@ -27,7 +27,7 @@ h1{font-size:16px;margin:0 0 8px}h2{font-size:13px;color:var(--ink2);margin:18px
 .attention table{margin:0}
 table{border-collapse:collapse;width:100%}th{text-align:left;color:var(--muted);font-weight:500;padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:28em;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
-tr.gone td{color:var(--muted)}tr.waiting td:first-child{border-left:4px solid var(--critical)}
+tr.gone td{color:var(--muted)}tr.ready td{background:rgba(204,85,0,.22)}tr.ready td:first-child{border-left:4px solid #cc5500}tr.waiting td:first-child{border-left:4px solid var(--critical)}
 .s-good{color:var(--good)}.s-warn{color:var(--serious)}.s-bad{color:var(--critical)}.muted{color:var(--muted)}
 .cap{color:var(--critical);font-weight:600}.stale{color:var(--serious);font-weight:600}
 a{color:inherit}footer{margin-top:18px;color:var(--muted)}
@@ -123,6 +123,13 @@ def _pr_sort_key(item):
     return (open_, gate, -int(n))
 
 
+def ready_for_human(p):
+    """Everything a merge needs except the human lgtm: green, no open threads, mergeable, unheld, not draft."""
+    return (p.get("checks") == "green" and (p.get("unresolved_threads") or 0) == 0
+            and p.get("mergeable") == "MERGEABLE" and not p.get("hold") and not p.get("draft")
+            and not p.get("lgtm"))
+
+
 def _prs(state):
     out = []
     for n, p in sorted(state["prs"].items(), key=_pr_sort_key):
@@ -133,6 +140,8 @@ def _prs(state):
         rounds_html = f'<span class="cap">{rounds}</span>' if (rounds or 0) >= 6 else e(rounds if rounds is not None else "—")
         title = f'<a href="{e(p["url"]) if p.get("url") else PR_URL.format(n=n)}">#{n}</a> {e(p["title"] or "")}'
         err = f' title="snapshot error: {e(p["snapshot_error"])}"' if p.get("snapshot_error") else ""
+        if ready_for_human(p):
+            err += ' class="ready" title="ready: only the human lgtm is missing"' if not err else ' class="ready"'
         out.append(
             f"<tr{err}><td>{title}</td><td>{e(p['owner'] or '—')}</td><td>{e(p['mergeable'] or '—')}</td>"
             f'<td class="{chk_cls}">{chk}</td><td>{e(p["unresolved_threads"] if p["unresolved_threads"] is not None else "—")}</td>'
