@@ -5,6 +5,7 @@ import re
 import sys
 from pathlib import Path
 
+import drift as D
 import gh_snapshot as G
 import render as V
 import signals as X
@@ -140,6 +141,8 @@ def cmd_tick(p, a):
     new += S.raise_orphans(state, now, fresh=not a.no_gh)   # after the snapshot: a dropped PR that merged raises nothing
     actions = X.compute_actions(state, now)
     new += X.apply_actions(state, actions, now)
+    drift_started = _drift_tick(p, state, actions, now)
+    new += _drift_collect(state, now)
     retired = S.retire_due(state, now)
     ov = state["overseer"]
     ov["tick"] = (ov.get("tick") or 0) + 1
@@ -156,9 +159,47 @@ def cmd_tick(p, a):
         summary.append("gh errors: " + ", ".join(gh_errors))
     if retired:
         summary.append("retired: " + ", ".join(retired))
+    if drift_started:
+        summary.append("drift review started: " + ", ".join(f"#{n}" for n in drift_started))
     summary.append(f"tick {ov['tick']}, {len(state['attention'])} open attention, next wake {ov.get('next_wake') or 'unset'}")
     print(json.dumps({"actions": actions, "new_attention": new, "gh_errors": gh_errors, "summary": summary[:5]}, indent=1))
     return 0
+
+
+def _drift_tick(p, state, actions, now):
+    """Every drift-check ATTENTION starts a headless drift review of that PR (once per head)."""
+    started = []
+    for x in actions:
+        if x["type"] == "ATTENTION" and x.get("kind") == "drift-check" and x.get("pr") is not None:
+            rounds = (state["prs"].get(str(x["pr"])) or {}).get("rounds")
+            if D.launch(state, x["pr"], rounds, G.ROUND_CAP, p.dir / "drift", now):
+                started.append(x["pr"])
+    return started
+
+
+def _drift_collect(state, now):
+    """A finished drift review becomes an attention item that names its verdict and file."""
+    new = []
+    for pr, run in D.collect(state):
+        owner = (state["prs"].get(str(pr)) or {}).get("owner") or "-"
+        what = f"drift review of #{pr}: {run.get('verdict') or 'no verdict line (read the file)'}; {run['path']}"
+        item = S.add_attention(state, owner, "drift-review", pr, what, now)
+        if item:
+            item["manual"] = True      # a report for the human to read, not a fact the sweep can overtake
+            new.append(item)
+    return new
+
+
+def cmd_drift(p, a):
+    """Start a drift review by hand (re-runs even if one already ran for this head)."""
+    state = _load(p)
+    now = S.now_iso()
+    (state.get("drift_runs") or {}).pop(str(a.pr), None)
+    rounds = (state["prs"].get(str(a.pr)) or {}).get("rounds")
+    run = D.launch(state, a.pr, rounds, G.ROUND_CAP, p.dir / "drift", now)
+    _finish(p, state)
+    print(json.dumps({"pr": a.pr, "path": run["path"] if run else None}))
+    return 0 if run else 1
 
 
 def cmd_sent(p, a):
@@ -274,6 +315,7 @@ def main(argv=None):
     s = sub.add_parser("decision"); s.add_argument("session"); s.add_argument("pr"); s.add_argument("quote"); s.set_defaults(fn=cmd_decision)
     s = sub.add_parser("intro"); s.add_argument("session"); s.set_defaults(fn=cmd_intro)
     s = sub.add_parser("rebuild"); s.set_defaults(fn=cmd_rebuild)
+    s = sub.add_parser("drift"); s.add_argument("pr", type=int); s.set_defaults(fn=cmd_drift)
     a = ap.parse_args(argv)
     return a.fn(Paths(a.dir), a)
 

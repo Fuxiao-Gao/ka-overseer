@@ -57,13 +57,14 @@ cross-session messaging (`ListAgents`, `SendMessage`, `claude agents --json`).
 
 | Path | What |
 | --- | --- |
-| `overseer/ovsr.py` | the CLI: `tick`, `report`, `intro`, `sent`, `assign`, `retire`, `clear`, `rule`, `attention`, `rebuild` |
+| `overseer/ovsr.py` | the CLI: `tick`, `report`, `intro`, `sent`, `assign`, `retire`, `clear`, `rule`, `attention`, `rebuild`, `drift` |
 | `overseer/state.py` | the state model and every mutation; `state.json` is the single source of truth |
 | `overseer/report.py` | the report parser |
 | `overseer/signals.py` | the escalation engine, a pure function over state |
 | `overseer/gh_snapshot.py` | the only place `gh` is called |
 | `overseer/roster.py`, `overseer/watch.sh` | roster reader and the one-minute watcher |
 | `overseer/render.py` | state to dashboard |
+| `overseer/drift.py`, `overseer/drift-prompt.md` | a PR past the round cap gets a read-only `claude -p` drift review (once per head); the verdict lands as attention. `drift_cwd` in config is the checkout it runs in |
 | `overseer/config.json` | deployment settings |
 | `overseer/tests/` | `python3 -m pytest overseer/tests -q` |
 | `docs/` | design, protocol, rules, escalation, original brief |
@@ -72,7 +73,7 @@ cross-session messaging (`ListAgents`, `SendMessage`, `claude agents --json`).
 | `tools/portify.py` | the transform that extracted this package from its origin repo, for the record |
 
 Runtime files the Overseer writes into `overseer/`: `state.json`, `reports.log` (append-only,
-rebuildable), `roster.json`, `dashboard.html`. They are git-ignored here; `reports.log` is
+rebuildable), `roster.json`, `dashboard.html`, `drift/`. They are git-ignored here; `reports.log` is
 enough to rebuild the table.
 
 ## Things learned the hard way

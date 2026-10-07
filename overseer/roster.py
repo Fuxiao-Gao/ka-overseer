@@ -12,11 +12,14 @@ from config import CFG
 
 SCOPE = re.compile(CFG["session_pattern"])
 CWD_PREFIXES = tuple(CFG.get("cwd_prefixes") or ())   # checkouts whose sessions count whatever they are named
+HEADLESS = re.compile(r"^drift-pr-")   # the Overseer's own `claude -p` drift reviews (drift.py): tools, not peers
 
 
 def in_scope(a):
     name, cwd = a.get("name") or "", a.get("cwd") or ""
-    return bool(name) and (bool(SCOPE.match(name)) or any(cwd.startswith(p) for p in CWD_PREFIXES))
+    if not name or HEADLESS.match(name):
+        return False
+    return bool(SCOPE.match(name)) or any(cwd.startswith(p) for p in CWD_PREFIXES)
 
 
 def _iso(ms):
