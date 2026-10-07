@@ -105,3 +105,12 @@ def test_ready_for_human_marks_only_the_lgtm_gap():
     assert V.ready_for_human(base)
     for k, v in [("lgtm", True), ("checks", "red"), ("unresolved_threads", 1), ("mergeable", "CONFLICTING"), ("hold", True), ("draft", True)]:
         assert not V.ready_for_human({**base, k: v}), k
+
+
+def test_humans_done_needs_every_signoff_and_no_hold():
+    import render as V
+    base = {"lgtm": True, "approved": True, "hold": False, "draft": False, "unresolved_threads": 0, "checks": "red"}
+    assert V.humans_done(base)
+    for k, v in [("lgtm", False), ("approved", False), ("hold", True), ("draft", True), ("unresolved_threads", 2)]:
+        assert not V.humans_done({**base, k: v}), k
+    assert not V.ready_for_human(base)     # lgtm'd, so never both colours
