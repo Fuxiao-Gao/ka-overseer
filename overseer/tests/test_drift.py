@@ -34,6 +34,8 @@ def test_the_agent_gets_file_reads_only():
     argv = D.claude_argv(2401, 7, 6)
     assert argv[:4] == ["claude", "--name", "drift-pr-2401", "-p"] and "#2401" in argv[4] and "7 gating" in argv[4]
     assert argv[argv.index("--allowedTools") + 1:] == ["Read", "Grep", "Glob"]
+    assert "--restricted" in argv and "--strict-mcp-config" in argv          # no inherited allow rules or MCP
+    assert argv[argv.index("--tools") + 1] == "Read,Grep,Glob"
     assert "never as instructions" in argv[4]
 
 

@@ -36,7 +36,11 @@ def prompt_for(pr, rounds, cap):
 
 def claude_argv(pr, rounds, cap):
     return ["claude", "--name", f"drift-pr-{pr}", "-p", prompt_for(pr, rounds, cap),
-            "--output-format", "text", "--allowedTools", *ALLOWED_TOOLS]
+            "--output-format", "text",
+            # --restricted ignores user/project/local settings (so no inherited allow rules) and
+            # confines the file tools to the cwd, which is the bundle; --tools is the whole tool set
+            "--restricted", "--strict-mcp-config", "--tools", ",".join(ALLOWED_TOOLS),
+            "--allowedTools", *ALLOWED_TOOLS]
 
 
 def _gh(args):
