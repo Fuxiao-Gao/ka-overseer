@@ -31,6 +31,8 @@ tr.gone td{color:var(--muted)}tr.ready td{background:rgba(204,85,0,.22)}tr.human
 .s-good{color:var(--good)}.s-warn{color:var(--serious)}.s-bad{color:var(--critical)}.muted{color:var(--muted)}
 .cap{color:var(--critical);font-weight:600}.stale{color:var(--serious);font-weight:600}
 a{color:inherit}footer{margin-top:18px;color:var(--muted)}
+#balloon{position:fixed;z-index:10;display:none;max-width:44em;padding:8px 10px;border-radius:6px;background:var(--tint);color:var(--ink);
+border:1px solid var(--line);box-shadow:0 4px 14px rgba(0,0,0,.25);white-space:pre-wrap;pointer-events:none}
 """
 
 JS = """
@@ -39,6 +41,13 @@ if(d<3600)return Math.floor(d/60)+'m';if(d<86400)return Math.floor(d/3600)+'h'+M
 function tick(){document.querySelectorAll('[data-ts]').forEach(e=>{e.textContent=age(e.dataset.ts);
 const lim=parseFloat(e.dataset.stale||'0');if(lim&&(Date.now()-Date.parse(e.dataset.ts))/60000>lim)e.classList.add('stale');});}
 tick();setInterval(tick,15000);
+// hover a session row for 1s to see its full needs / note
+(function(){const b=document.createElement('div');b.id='balloon';document.body.appendChild(b);let t=null,x=0,y=0;
+document.querySelectorAll('tr[data-note]').forEach(r=>{
+r.addEventListener('mouseenter',()=>{clearTimeout(t);t=setTimeout(()=>{b.textContent=r.dataset.note;b.style.display='block';
+const w=b.offsetWidth,h=b.offsetHeight;b.style.left=Math.min(x+12,innerWidth-w-8)+'px';b.style.top=Math.min(y+14,innerHeight-h-8)+'px';},1000);});
+r.addEventListener('mousemove',ev=>{x=ev.clientX;y=ev.clientY;});
+r.addEventListener('mouseleave',()=>{clearTimeout(t);b.style.display='none';});});})();
 """
 
 ROSTER_ICON = {"busy": "● busy", "shell": "▶ shell", "idle": "○ idle", "waiting": "⏸ waiting", "gone": "✕ gone", None: "—"}
@@ -106,8 +115,10 @@ def _sessions(state, roster):
         stale = cadence * 2 if cadence else None
         driver = f"{r['driver']}/{cadence}m" if r["driver"] and cadence else (r["driver"] or "—")
         prs = " ".join(pr_link(n) for n in r["prs"]) or "—"
+        note = r["needs"] or r["status_detail"] or r["note"] or ""
+        data_note = f' data-note="{e(note)}"' if note else ""
         out.append(
-            f'<tr class="row {cls}"><td>{e(name)}</td><td>{e(r["role"] or "—")}</td><td>{L(r["theme"] or "—")}</td>'
+            f'<tr class="row {cls}"{data_note}><td>{e(name)}</td><td>{e(r["role"] or "—")}</td><td>{L(r["theme"] or "—")}</td>'
             f"<td>{e(driver)}</td><td>{ROSTER_ICON.get(rs, e(rs))}</td><td>{STATUS_ICON.get(r['status'], e(r['status']))}</td>"
             f"<td>{prs}</td><td>{ts(r['last_report'], stale)}</td><td>{ts(r['last_activity'])}</td>"
             f"<td>{e(r['rules_ack'] or '—')}</td><td title=\"{e(r['needs'] or r['status_detail'] or r['note'])}\">{L(r['needs'] or r['status_detail'] or r['note'] or '')}</td></tr>")

@@ -114,3 +114,13 @@ def test_humans_done_needs_every_signoff_and_no_hold():
     for k, v in [("lgtm", False), ("approved", False), ("hold", True), ("draft", True), ("unresolved_threads", 2)]:
         assert not V.humans_done({**base, k: v}), k
     assert not V.ready_for_human(base)     # lgtm'd, so never both colours
+
+
+def test_session_rows_carry_the_full_note_for_the_hover_balloon():
+    import render as V, state as S
+    st = S.empty_state()
+    row = S.session(st, "kube-agents-vamp-99")
+    row.update(note="a very long note " * 10, status="working", role="task")
+    out = V.render(st, None, "2026-10-07T00:00:00Z")
+    assert 'data-note="a very long note' in out
+    assert "#balloon" in out and "tr[data-note]" in out
