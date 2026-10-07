@@ -4,7 +4,7 @@ One Claude Code session that watches all your other Claude Code sessions: who is
 what, which PRs they own, where each PR sits against the human gate, who is stalled waiting on
 you, and a dashboard so you read one table instead of ten transcripts.
 
-![The Overseer dashboard: the red attention band, the sessions table, and the PRs table with drift](docs/images/dashboard.png)
+![The Overseer dashboard: the red attention band, the sessions table, and the PRs table with drift](docs/images/dashboard.jpg)
 
 It came out of running eight to ten parallel sessions on one repo. The two pains it fixes:
 sessions pausing on a question you do not notice for an hour, and the cognitive load of
