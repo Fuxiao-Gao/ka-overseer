@@ -27,6 +27,5 @@
   "notify": "osascript",
   "cwd_prefixes": [
     "/Users/bnaylor/src/kube-agents"
-  ],
-  "drift_cwd": "/Users/bnaylor/src/kube-agents-vamp"
+  ]
 }

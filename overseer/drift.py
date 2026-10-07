@@ -1,29 +1,96 @@
 """Drift review: when a PR crosses the round cap, a headless `claude -p` reads its review history
-and writes a verdict for the human. Read-only by construction: the allowed tools are reads and gh
-GETs, and the report goes to stdout, which we redirect to a file. One run per PR head.
+and writes a verdict for the human. One run per PR head.
+
+The PR text is written by anyone who can comment, so the agent gets no network or write path at
+all. A detached wrapper (`python3 drift.py run ...`) first fetches the history with fixed read-only
+gh calls into a bundle directory, then execs claude in that directory with Read/Grep/Glob only.
+The report goes to stdout, which the spawn redirects to a file.
 
 State lives in state["drift_runs"][pr] = {pid, path, head, started, done}.
 """
+import argparse
+import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 from config import CFG
 
 PROMPT = Path(__file__).with_name("drift-prompt.md")
-REPO_DIR = CFG.get("drift_cwd") or None      # a checkout of the repo for git; None inherits the Overseer's cwd
-ALLOWED_TOOLS = [
-    "Read", "Grep", "Glob",
-    "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh pr checks:*)",
-    "Bash(gh api:*)",        # GETs; the prompt forbids writes and the run has no other write path
-    "Bash(git log:*)", "Bash(git show:*)", "Bash(git diff:*)", "Bash(git fetch:*)",
-]
+ALLOWED_TOOLS = ["Read", "Grep", "Glob"]   # nothing that writes, runs commands, or reaches the network
 VERDICTS = ("CONVERGED", "CONVERGING", "SPIRALLING", "STALLED-ON-HUMAN")
+MAX_COMMITS = 80
+MAX_PATCH = 6000   # chars per file patch; the agent classifies findings, it doesn't re-review
+
+THREADS_QUERY = """query($owner:String!,$name:String!,$pr:Int!){repository(owner:$owner,name:$name){
+pullRequest(number:$pr){userContentEdits(first:100){nodes{createdAt diff}}
+reviewThreads(first:100){nodes{isResolved isOutdated path line
+comments(first:50){nodes{author{login} body createdAt url}}}}}}}"""
 
 
 def prompt_for(pr, rounds, cap):
     return PROMPT.read_text().format(pr=pr, rounds=rounds, cap=cap, repo=CFG["repo"],
                                      gating_bot=CFG["gating_bot"], human=CFG["human"])
+
+
+def claude_argv(pr, rounds, cap):
+    return ["claude", "--name", f"drift-pr-{pr}", "-p", prompt_for(pr, rounds, cap),
+            "--output-format", "text", "--allowedTools", *ALLOWED_TOOLS]
+
+
+def _gh(args):
+    return subprocess.run(["gh", *args], capture_output=True, text=True, check=True).stdout
+
+
+GH = _gh   # tests replace this
+
+
+def gather(pr, repo, bundle):
+    """Fetch the PR's review history into `bundle`. Every call is a fixed read-only argv."""
+    bundle = Path(bundle)
+    (bundle / "commits").mkdir(parents=True, exist_ok=True)
+    owner, name = repo.split("/", 1)
+    view = GH(["pr", "view", str(pr), "-R", repo, "--json",
+               "title,body,closingIssuesReferences,commits,reviews,comments,createdAt,additions,deletions,headRefOid"])
+    (bundle / "pr.json").write_text(view)
+    meta = json.loads(view)
+    g = json.loads(GH(["api", "graphql", "-f", f"query={THREADS_QUERY}", "-F", f"owner={owner}",
+                       "-F", f"name={name}", "-F", f"pr={int(pr)}"]))
+    p = g["data"]["repository"]["pullRequest"]
+    (bundle / "threads.json").write_text(json.dumps(p["reviewThreads"]["nodes"], indent=1))
+    (bundle / "body_edits.json").write_text(json.dumps(p["userContentEdits"]["nodes"], indent=1))
+    for issue in meta.get("closingIssuesReferences") or []:
+        n = int(issue["number"])
+        (bundle / f"issue-{n}.json").write_text(GH(["issue", "view", str(n), "-R", repo, "--json", "title,body"]))
+    for c in (meta.get("commits") or [])[-MAX_COMMITS:]:
+        sha = c["oid"]
+        if not all(ch in "0123456789abcdef" for ch in sha):
+            continue
+        full = json.loads(GH(["api", f"repos/{owner}/{name}/commits/{sha}"]))
+        files = [{"filename": f.get("filename"), "status": f.get("status"),
+                  "additions": f.get("additions"), "deletions": f.get("deletions"),
+                  "patch": _cut(f.get("patch") or "")} for f in full.get("files") or []]
+        (bundle / "commits" / f"{sha}.json").write_text(json.dumps(
+            {"sha": sha, "message": full.get("commit", {}).get("message"),
+             "date": full.get("commit", {}).get("committer", {}).get("date"), "files": files}, indent=1))
+    try:
+        checks = GH(["pr", "checks", str(pr), "-R", repo, "--json", "name,state,link"])
+    except subprocess.CalledProcessError as e:   # gh exits non-zero while checks are pending or red
+        checks = e.stdout or "[]"
+    (bundle / "checks.json").write_text(checks)
+
+
+def _cut(patch):
+    return patch if len(patch) <= MAX_PATCH else patch[:MAX_PATCH] + f"\n[... cut, {len(patch) - MAX_PATCH} more chars]"
+
+
+def run(pr, rounds, cap, bundle):
+    """The detached wrapper: gather, then become claude inside the bundle."""
+    gather(pr, CFG["repo"], bundle)
+    os.chdir(bundle)
+    argv = claude_argv(pr, rounds, cap)
+    os.execvp(argv[0], argv)
 
 
 def _spawn(argv, out_path, cwd):
@@ -48,10 +115,10 @@ def launch(state, pr, rounds, cap, out_dir, now):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"pr-{pr}-{now.replace(':', '')}.md"
-    argv = ["claude", "--name", f"drift-pr-{pr}", "-p", prompt_for(pr, rounds, cap),
-            "--output-format", "text",
-            "--allowedTools", *ALLOWED_TOOLS]
-    pid = SPAWN(argv, path, REPO_DIR)
+    bundle = Path(str(path)[:-3] + ".bundle")
+    argv = [sys.executable, str(Path(__file__).resolve()), "run", "--pr", str(int(pr)),
+            "--rounds", str(rounds), "--cap", str(cap), "--bundle", str(bundle)]
+    pid = SPAWN(argv, path, str(Path(__file__).resolve().parent))
     runs[str(pr)] = {"pid": pid, "path": str(path), "head": head, "started": now, "done": False}
     return runs[str(pr)]
 
@@ -83,10 +150,22 @@ def verdict_of(path):
 def collect(state):
     """Mark finished runs done; return [(pr, run)] that finished since the last call."""
     finished = []
-    for pr, run in (state.get("drift_runs") or {}).items():
-        if run.get("done") or ALIVE(run["pid"]):
+    for pr, run_ in (state.get("drift_runs") or {}).items():
+        if run_.get("done") or ALIVE(run_["pid"]):
             continue
-        run["done"] = True
-        run["verdict"] = verdict_of(run["path"])
-        finished.append((int(pr), run))
+        run_["done"] = True
+        run_["verdict"] = verdict_of(run_["path"])
+        finished.append((int(pr), run_))
     return finished
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    r = sub.add_parser("run")
+    r.add_argument("--pr", type=int, required=True)
+    r.add_argument("--rounds", required=True)
+    r.add_argument("--cap", required=True)
+    r.add_argument("--bundle", required=True)
+    a = ap.parse_args()
+    run(a.pr, a.rounds, a.cap, a.bundle)

@@ -18,7 +18,6 @@ DEFAULTS = {
         "reviewed": ["--search", "reviewed-by:@me -author:@me"],
     },
     "notify": "osascript",
-    "drift_cwd": "",
 }
 
 

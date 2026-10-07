@@ -64,7 +64,7 @@ cross-session messaging (`ListAgents`, `SendMessage`, `claude agents --json`).
 | `overseer/gh_snapshot.py` | the only place `gh` is called |
 | `overseer/roster.py`, `overseer/watch.sh` | roster reader and the one-minute watcher |
 | `overseer/render.py` | state to dashboard |
-| `overseer/drift.py`, `overseer/drift-prompt.md` | a PR past the round cap gets a read-only `claude -p` drift review (once per head); the verdict lands as attention. `drift_cwd` in config is the checkout it runs in |
+| `overseer/drift.py`, `overseer/drift-prompt.md` | a PR past the round cap gets a read-only `claude -p` drift review (once per head); the verdict lands as attention. The Overseer fetches the PR history itself; the agent gets Read/Grep/Glob over that bundle and nothing else |
 | `overseer/config.json` | deployment settings |
 | `overseer/tests/` | `python3 -m pytest overseer/tests -q` |
 | `docs/` | design, protocol, rules, escalation, original brief |
