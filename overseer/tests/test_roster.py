@@ -13,7 +13,7 @@ RAW = [
 def test_filter_keeps_scope_and_converts_time():
     out = R.filter_roster(RAW)
     assert [a["name"] for a in out] == ["kube-agents-vamp-1", "kube-agents-vamp-d4", "overseer-spike"]
-    assert out[0] == {"name": "kube-agents-vamp-1", "status": "waiting", "kind": "interactive", "started_at": "2026-09-21T14:13:20Z"}
+    assert out[0] == {"name": "kube-agents-vamp-1", "status": "waiting", "kind": "interactive", "started_at": "2026-09-21T14:13:20Z", "cwd": "/x"}
 
 
 def test_newly_waiting_transitions():

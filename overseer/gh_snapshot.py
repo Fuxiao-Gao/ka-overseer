@@ -1,4 +1,4 @@
-"""The only place gh is called. Writes the prs part of state.json."""
+"""The only place gh is called. Writes the prs part of state.json and looks up PRs for worktree branches."""
 import argparse
 import json
 import subprocess
@@ -186,6 +186,53 @@ def snapshot(state, numbers, fetch_pr=fetch_pr, fetch_unresolved=fetch_unresolve
             result["errors"][n] = str(e)
     state["updated"] = now
     return result
+
+
+BRANCH_PR_FIELDS = "number,state,headRefName,headRefOid,headRepositoryOwner,url,updatedAt"
+
+
+def _pick(candidates):
+    """Several PRs can share a branch name over time: the open one wins, else the newest."""
+    return max(candidates, key=lambda p: (p["state"] == "OPEN", p.get("updatedAt") or "")) if candidates else None
+
+
+def branch_prs(rows, run=_run):
+    """PRs for worktree branches: {(repo, branch): pr}, plus errors keyed by repo (the list failed) or (repo, branch).
+
+    One `--author @me` list per repo covers most branches; a per-branch query covers PRs someone else opened.
+    A PR only matches when its head is on the worktree's fork, so another person's same-named branch never does.
+    """
+    found, errors = {}, {}
+    by_repo = {}
+    for r in rows:
+        by_repo.setdefault(r["repo"], {})[r["branch"]] = r.get("fork_owner")
+
+    def matches(p, branch, owner):
+        head_owner = (p.get("headRepositoryOwner") or {}).get("login")
+        return p.get("headRefName") == branch and (owner is None or head_owner is None or head_owner.lower() == owner.lower())
+
+    def row(repo, p):
+        return {"repo": repo, "number": p["number"], "state": p["state"], "url": p.get("url"), "head_oid": p.get("headRefOid")}
+
+    for repo, branches in by_repo.items():
+        try:
+            mine = json.loads(run(["gh", "pr", "list", "-R", repo, "--state", "all", "--author", "@me",
+                                   "--limit", "200", "--json", BRANCH_PR_FIELDS]))
+        except (RuntimeError, ValueError) as e:
+            errors[repo] = str(e)
+            continue
+        for branch, owner in branches.items():
+            hit = _pick([p for p in mine if matches(p, branch, owner)])
+            if hit is None:
+                try:
+                    hit = _pick([p for p in json.loads(run(["gh", "pr", "list", "-R", repo, "--state", "all", "--head", branch,
+                                                            "--json", BRANCH_PR_FIELDS])) if matches(p, branch, owner)])
+                except (RuntimeError, ValueError) as e:
+                    errors[(repo, branch)] = str(e)
+                    continue
+            if hit:
+                found[(repo, branch)] = row(repo, hit)
+    return found, errors
 
 
 def main(argv=None):

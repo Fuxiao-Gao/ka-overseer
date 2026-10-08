@@ -29,7 +29,7 @@ def _iso(ms):
 def filter_roster(agents):
     # a session caught mid-start or mid-exit can lack `status`; keep it as unknown rather than crash the watcher
     out = [{"name": a["name"], "status": a.get("status") or "unknown", "kind": a.get("kind"),
-            "started_at": _iso(a["startedAt"]) if a.get("startedAt") else None}
+            "started_at": _iso(a["startedAt"]) if a.get("startedAt") else None, "cwd": a.get("cwd")}
            for a in agents if in_scope(a)]
     # names can collide (the suffix is two hex digits); the oldest keeps the name, later ones get ~2, ~3 ...
     out.sort(key=lambda a: (a["name"], a["started_at"] or ""))

@@ -24,10 +24,19 @@ def parse_iso(s):
     return datetime.fromisoformat(s)
 
 
+def iso_from_ts(ts):
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def normalize_iso(s):
+    """Any ISO time with an offset, as UTC with a Z, so stored times compare as strings."""
+    return parse_iso(s).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def empty_state():
     return {"updated": None, "rules_version": 9,
             "overseer": {"session": None, "tick": 0, "next_wake": None},
-            "sessions": {}, "prs": {}, "attention": [], "retired": []}
+            "sessions": {}, "prs": {}, "attention": [], "retired": [], "worktrees": None}
 
 
 def load_state(path):
@@ -81,7 +90,7 @@ def _session_row():
     return {"role": None, "theme": None, "driver": None, "cadence_min": None, "mode": None,
             "rules_ack": None, "prs": [], "status": None, "roster_status": None, "kind": None,
             "needs": None, "status_detail": None, "last_report": None, "last_activity": None, "last_poke": None,
-            "started_at": None, "gone_since": None, "ladder": 0, "note": None}
+            "started_at": None, "gone_since": None, "ladder": 0, "note": None, "cwd": None}
 
 
 def _pr_row():
@@ -348,6 +357,7 @@ def apply_roster(state, roster, now):
         seen.add(name)
         row = session(state, name)
         row["kind"] = a.get("kind")
+        row["cwd"] = a.get("cwd") or row["cwd"]
         row["started_at"] = a.get("started_at") or row["started_at"]
         if row["roster_status"] != a["status"]:
             row["last_activity"] = now
