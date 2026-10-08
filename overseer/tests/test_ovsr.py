@@ -250,3 +250,20 @@ def test_decision_command_logs_and_prints_a_verbatim_decision(tmp_path, monkeypa
     assert out.startswith("DECISION from the human via the Overseer") and '"I agree with the push and the split."' in out and "#1884" in out
     log = (Path(d) / "decisions.log").read_text().splitlines()
     assert len(log) == 1 and json.loads(log[0])["to"] == "kube-agents-vamp-d4" and json.loads(log[0])["quote"] == "I agree with the push and the split."
+
+
+def test_tick_line_survives_the_summary_cap(tmp_path, monkeypatch, capsys):
+    d = setup(tmp_path, monkeypatch)
+    item = {"session": "kube-agents-vamp-7", "what": "#5 hit the round cap; drift check"}
+    monkeypatch.setattr(ovsr.G, "scope_numbers", lambda state: set())
+    monkeypatch.setattr(ovsr.G, "snapshot", lambda state, nums, now: {"errors": {5: "HTTP 502"}})
+    monkeypatch.setattr(ovsr, "refresh_worktrees", lambda state, now: None)
+    monkeypatch.setattr(ovsr.X, "compute_actions", lambda state, now: [{"type": "PING", "session": "kube-agents-vamp-7"}])
+    monkeypatch.setattr(ovsr.X, "apply_actions", lambda state, actions, now: [])
+    monkeypatch.setattr(ovsr, "_drift_tick", lambda p, state, actions, now: [5])
+    monkeypatch.setattr(ovsr, "_drift_collect", lambda state, now: [item])
+    monkeypatch.setattr(ovsr.S, "retire_due", lambda state, now: ["kube-agents-vamp-8"])
+    assert ovsr.main(["--dir", d, "tick"]) == 0
+    summary = json.loads(capsys.readouterr().out)["summary"]
+    assert len(summary) == 5
+    assert summary[-1].startswith("tick 1, ")             # the tick line carries the worktree count; never cut

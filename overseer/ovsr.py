@@ -176,7 +176,8 @@ def cmd_tick(p, a):
     cleanup = sum(1 for r in wt if r["status"] in ("cleanup", "missing"))
     wt_part = f", {cleanup} worktree{'s' if cleanup != 1 else ''} to clean up" if cleanup else ""
     summary.append(f"tick {ov['tick']}, {len(state['attention'])} open attention{wt_part}, next wake {ov.get('next_wake') or 'unset'}")
-    print(json.dumps({"actions": actions, "new_attention": new, "gh_errors": gh_errors, "summary": summary[:5]}, indent=1))
+    summary = summary[:4] + summary[-1:] if len(summary) > 5 else summary   # the tick line always survives the cap
+    print(json.dumps({"actions": actions, "new_attention": new, "gh_errors": gh_errors, "summary": summary}, indent=1))
     return 0
 
 
